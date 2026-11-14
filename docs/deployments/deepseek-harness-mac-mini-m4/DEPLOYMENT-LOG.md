@@ -68,6 +68,26 @@
 **NOT_TESTED:** 本次未安装或启用任何插件，未复核更新渠道变更，未取得 Mac 原生 Computer Use 的实际执行轨迹。  
 **NOT_TESTED:** No plugin was installed or enabled in this record-keeping step; update-channel changes and macOS Computer Use execution were not tested.
 
+## 2026-11-14：Computer Use（Finder）受控验收｜Bounded Native GUI Test
+
+**USER_REPORTED — Harness 工具执行记录 / User-provided Harness tool report:** macOS 的 CUA `getCapabilities()` 报告辅助功能和屏幕录制权限均可用，桌面已解锁；`getState()` 成功枚举正在运行的应用。  
+**USER_REPORTED — Harness tool report:** CUA `getCapabilities()` indicated macOS Accessibility and Screen Recording permissions available, with an unlocked session; `getState()` enumerated active applications.
+
+**测试过程与失效恢复 / Test sequence and recovery:** Finder 起初没有可解析的标准窗口；`app.activate()` 与 `app.show()` 报告 `NATIVE_ERROR` / `-25201`。同一工具对 TextEdit 和 Chrome 激活成功。随后用 Shell `open -a Finder` 打开非敏感工作区目录，CUA 才枚举出屏幕上可见的标准 Finder 窗口；先激活 TextEdit，再切换 Finder，`foregroundChanged:true`；AX 树和窗口截图报告也与标准 Finder 窗口一致。  
+**Test sequence and recovery:** Finder initially had no resolvable standard window; `app.activate()` and `app.show()` returned `NATIVE_ERROR` / `-25201`. Comparable activation of TextEdit and Chrome succeeded. A shell `open -a Finder` opened a non-sensitive workspace, after which CUA detected a visible standard Finder window; switching TextEdit to Finder yielded `foregroundChanged:true`, supported by a reported AX standard-window tree and screenshot.
+
+**判断与限制 / Assessment and limits:** 本次证据支持“缺少 Finder 标准窗口是触发错误的重要因素”，不能仅据此推断所有 `-25201` 都由同一根因导致。用户提供的是 Harness 执行报告，未在本对话中提供可独立读取的原始 CUA 日志或截图。  
+**Assessment and limits:** The absent Finder standard window is a plausible contributing cause of this incident, but not a proven universal explanation for `-25201`. The evidence is a user-supplied Harness report; raw CUA tool logs and screenshot were not independently inspected in this conversation.
+
+**补充发现 / Additional finding:** 使用 `osascript` 向 System Events 查询前台应用时遇到 `-10004` 权限拒绝；未因此新增 macOS 自动化权限。本次 Finder 前台切换仍通过 CUA 成功。  
+**Additional finding:** An `osascript` query through System Events returned `-10004` permission denial. No new macOS Automation permission was granted; Finder foreground activation still succeeded through CUA.
+
+**范围与副作用 / Scope and side effects:** 仅创建并保留一个指向测试工作区的 Finder 窗口；未报告文件删除、移动、重命名、上传或系统设置修改。打开窗口使用 Shell，不属于纯 CUA 调用。  
+**Scope and side effects:** Only a Finder window targeting the test workspace was opened and left visible. No file deletions, moves, renames, uploads, or system settings changes were reported. Window creation used the shell, so the workflow was not exclusively CUA.
+
+**状态 / Status:** 有界 Finder CUA 测试 **PASS（用户报告）**；完整 macOS GUI 自动化能力 **PARTIAL / NOT FULLY TESTED**。  
+**Status:** Bounded Finder CUA test **PASS (user-reported)**; broad macOS GUI automation remains **PARTIAL / NOT FULLY TESTED**.
+
 ### 设计决策｜Architecture Decisions
 
 - **DECISION — 主 Harness 原生部署 / Native primary runtime:** Prefer the official macOS Desktop application over a Dockerized principal agent; future ancillary services may use Docker.  
@@ -83,7 +103,7 @@
 - [ ] 复核 API 提供商与模型身份，完成一条可复现的短对话 / Check selected provider and model; run one reproducible short prompt.
 - [x] 创建专用无敏感数据的测试工作区；由 Agent 实际读取与新建文件，并从 macOS 侧核验（用户提供交叉验证输出） / Verify read/write against a disposable workspace (user-supplied terminal cross-check).
 - [x] 执行无副作用的 shell 查询（用户提供 `pwd` 的 Harness 执行报告；完整工具事件轨迹未独立审阅） / Harmless shell command reported by the user (`pwd`); raw tool-event telemetry not independently reviewed.
-- [ ] 单独检查权限与审批策略；模型对策略的描述不构成配置审计 / Audit permissions and approval settings independently of model claims.
+- [ ] 单独审计当前会话审批策略与系统授权；虽然 CUA 报告辅助功能与录屏权限正常、Finder 受控操作通过，但更广泛的权限策略仍需验收 / Audit current-session approvals and OS grants; CUA reported Accessibility/Screen Recording available and bounded Finder activation passed, but broader permissions remain unverified.
 - [ ] 核对 1 TB SSD 的格式、卷名、挂载稳定性及备份方案后再决定正式工作区位置 / Verify external SSD format, mount reliability, and backup before selecting permanent workspace locations.
 - [ ] 后续逐步接入可用的 Office Skill、MCP 和远程计算节点，分别验收 / Introduce Office skills, MCP, and remote workers incrementally and test each integration.
 

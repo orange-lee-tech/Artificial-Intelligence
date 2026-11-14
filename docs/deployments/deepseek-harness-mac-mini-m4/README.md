@@ -4,7 +4,7 @@
 **记录日期｜Recorded:** 2026-11-14  
 **平台｜Platform:** macOS / Apple Silicon (M4)  
 **架构｜Architecture:** DeepSeek Harness Desktop (native) + official DeepSeek API (cloud-first)  
-**总体状态｜Overall status:** PARTIAL — installation, conversation, baseline file read/write and shell smoke tests evidenced; native automation and recovery pending
+**总体状态｜Overall status:** PARTIAL — installation, conversation, file/shell and a bounded Finder Computer Use test evidenced; system automation coverage and recovery remain pending
 
 ## 目标与范围｜Purpose and Scope
 
@@ -27,7 +27,7 @@ This project follows PACS evidence and acceptance rules. Documentation is not op
 | DeepSeek API | API configuration completed; conversational reply received | 用户报告 / User report |
 | Harness version | 0.2.2-rc.3 / 截图显示版本 | 用户 UI 截图 / User-supplied UI screenshot |
 | File and shell tools | Basic read/write and `pwd` smoke tests passed / 基础读写和 `pwd` 测试通过 | Harness report + user-supplied terminal cross-check | 
-| Native automation | Not tested / 尚未实测 | NOT_TESTED |
+| Native automation | Finder foreground activation passed in a bounded CUA test / Finder 前台激活的 CUA 有界测试通过 | User-provided Harness tool execution report; not independently replayed |
 
 ## 部署决策｜Deployment Decisions
 
@@ -50,7 +50,7 @@ This project follows PACS evidence and acceptance rules. Documentation is not op
 | B. API 模型实际响应 / Live model response | PARTIAL (user-reported) | Confirm selected DeepSeek API provider and record reproducible test |
 | C. 工作区读写 / Workspace read-write | PASS — user-supplied evidence | Harness reports read/write/read-back; macOS `cat` confirmed output |
 | D. Shell 工具执行 / Shell execution | PASS — user-reported tool use | `pwd` returned workspace root; raw tool telemetry not independently reviewed |
-| E. macOS 原生自动化 / macOS automation | NOT_TESTED | Independently verify required macOS permissions and one reversible action |
+| E. macOS 原生自动化 / macOS automation | PARTIAL — bounded Finder CUA test passed (user-reported) | Accessibility/screen capture capabilities reported; Finder activation observed after creating a workspace window; wider automation not tested |
 | F. 备份恢复 / Backup and restore | NOT_TESTED | Recover a non-secret test workspace from backup |
 | G. 扩展节点 / Remote worker integration | NOT_STARTED | Test authenticated, narrowly scoped communication with the F117 worker |
 
