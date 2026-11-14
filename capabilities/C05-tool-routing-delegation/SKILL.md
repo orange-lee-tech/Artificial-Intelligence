@@ -1,10 +1,12 @@
 ---
-id: C05
-name: 工具选择与委派
-version: 0.1.0
-status: READY
-priority: P0
-minimum_autonomy: A0
+name: pacs-tool-routing-delegation
+description: "Routes tasks to suitable models, agents, tools, and reviewers within explicit permission boundaries."
+metadata:
+  pacs_id: C05
+  version: 0.1.0
+  status: READY
+  priority: P0
+  minimum_autonomy: A0
 ---
 
 # C05｜工具选择与委派

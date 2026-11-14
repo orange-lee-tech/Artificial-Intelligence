@@ -1,10 +1,12 @@
 ---
-id: C02
-name: 上下文获取
-version: 0.1.0
-status: READY
-priority: P0
-minimum_autonomy: A0
+name: pacs-context-acquisition
+description: "Retrieves and reconciles the minimum reliable project context, prior decisions, and evidence needed for a task."
+metadata:
+  pacs_id: C02
+  version: 0.1.0
+  status: READY
+  priority: P0
+  minimum_autonomy: A0
 ---
 
 # C02｜上下文获取

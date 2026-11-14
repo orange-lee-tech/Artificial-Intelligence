@@ -1,10 +1,12 @@
 ---
-id: C03
-name: 问题建模
-version: 0.1.0
-status: READY
-priority: P0
-minimum_autonomy: A0
+name: pacs-problem-modeling
+description: "Models complex problems by identifying system boundaries, dependencies, causal claims, constraints, and unknowns."
+metadata:
+  pacs_id: C03
+  version: 0.1.0
+  status: READY
+  priority: P0
+  minimum_autonomy: A0
 ---
 
 # C03｜问题建模

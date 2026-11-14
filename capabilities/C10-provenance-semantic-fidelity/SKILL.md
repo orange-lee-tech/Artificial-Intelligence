@@ -1,10 +1,12 @@
 ---
-id: C10
-name: 事实溯源与语义保真
-version: 0.1.0
-status: READY
-priority: P1
-minimum_autonomy: A0
+name: pacs-provenance-semantic-fidelity
+description: "Preserves source provenance and semantic fidelity while separating facts, inferences, assumptions, and proposals."
+metadata:
+  pacs_id: C10
+  version: 0.1.0
+  status: READY
+  priority: P1
+  minimum_autonomy: A0
 ---
 
 # C10｜事实溯源与语义保真

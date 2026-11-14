@@ -1,11 +1,12 @@
 ---
-id: CXX
-name: Capability Name
-version: 0.1.0
-status: DRAFT
-priority: P1
-maturity: A
-minimum_autonomy: A0
+name: pacs-new-capability
+description: "Describe the specific repeatable task this capability performs and when it should be used."
+metadata:
+  pacs_id: CXX
+  version: 0.1.0
+  status: DRAFT
+  priority: P1
+  minimum_autonomy: A0
 ---
 
 # CXX｜能力名称

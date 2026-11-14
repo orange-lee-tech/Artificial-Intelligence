@@ -1,10 +1,12 @@
 ---
-id: C11
-name: 交付物质量控制
-version: 0.1.0
-status: READY
-priority: P1
-minimum_autonomy: A0
+name: pacs-artifact-quality-control
+description: "Checks artifact correctness, completeness, usability, formatting, and audience fit across documents, slides, and code."
+metadata:
+  pacs_id: C11
+  version: 0.1.0
+  status: READY
+  priority: P1
+  minimum_autonomy: A0
 ---
 
 # C11｜交付物质量控制

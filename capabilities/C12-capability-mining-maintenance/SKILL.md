@@ -1,10 +1,12 @@
 ---
-id: C12
-name: 能力抽象与维护
-version: 0.1.0
-status: READY
-priority: P1
-minimum_autonomy: A1
+name: pacs-capability-mining-maintenance
+description: "Extracts reusable capabilities from validated work, then tests, versions, consolidates, or retires them."
+metadata:
+  pacs_id: C12
+  version: 0.1.0
+  status: READY
+  priority: P1
+  minimum_autonomy: A1
 ---
 
 # C12｜能力抽象与维护

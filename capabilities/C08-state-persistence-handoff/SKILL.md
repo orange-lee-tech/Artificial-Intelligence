@@ -1,10 +1,12 @@
 ---
-id: C08
-name: 状态持久化与交接
-version: 0.1.0
-status: READY
-priority: P0
-minimum_autonomy: A1
+name: pacs-state-persistence-handoff
+description: "Persists project state, decisions, evidence, risks, and handoff instructions for safe continuation."
+metadata:
+  pacs_id: C08
+  version: 0.1.0
+  status: READY
+  priority: P0
+  minimum_autonomy: A1
 ---
 
 # C08｜状态持久化与交接

@@ -1,10 +1,12 @@
 ---
-id: C04
-name: 任务拆解与编排
-version: 0.1.0
-status: READY
-priority: P0
-minimum_autonomy: A0
+name: pacs-task-orchestration
+description: "Breaks goals into executable, dependent, testable tasks with owners, checkpoints, and recovery paths."
+metadata:
+  pacs_id: C04
+  version: 0.1.0
+  status: READY
+  priority: P0
+  minimum_autonomy: A0
 ---
 
 # C04｜任务拆解与编排

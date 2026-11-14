@@ -1,23 +1,30 @@
 # Trae Adapter Profile
 
-状态：NOT_TESTED  
-项目优先级：第二批  
-定位：重点验证 IDE 场景下的软件工程上下文、代码施工、测试和仓库协作。
+状态：DOCUMENTED｜当前账户实测：NOT_TESTED  
+项目优先级：第二批
 
-## 适配目标
-将 C01–C08 的工程能力映射到项目级上下文、代码编辑、终端、测试和版本控制流程。
+## 官方机制
+TRAE 官方文档将 Skill 定义为 SKILL.md 文件，可包含指令、脚本和资源，并按任务相关性动态加载。官方明确区分 Rule（规则进入上下文）、Skill（按需加载专业流程）和 MCP Server（提供可调用工具）。
 
-## 必须核实
-- 项目规则和工作区上下文如何加载。
-- Agent 对文件、终端和仓库的读写权限。
-- 代码修改、测试、构建和调试能力。
-- Git 分支、差异审查和回滚流程。
-- 多 Agent 或任务委派是否可用及其边界。
+官方文档列出项目级技能目录 .trae/skills/，以及全局目录：Windows %userprofile%/.trae-cn/skills，macOS/Linux ~/.trae-cn/skills。项目技能仅从可信目录加载。
 
-## 映射要求
-优先验证 W01 软件产品交付工作流；特别检查 CODE、LOCAL_TEST、CI、PROD、DEVICE 的证据区分。
+## PACS 映射
+- Constitution 与 User Profile：使用全局规则或全局 Skill 承载稳定协作规范。
+- 项目特定规则：使用项目 Rule。
+- C01–C12：独立放入项目或全局 Skills。
+- MCP：单独配置工具连接，不把工具连接写成 Skill。
+- W01：优先作为项目级工程工作流，与仓库规则共同加载。
 
-## 验收
-执行 T03、T05、T06、T08、T09、T10，并在隔离分支完成一项可回滚的示例修改。
+## 导入方式
+1. 使用 PACS 导出器生成 .trae/skills/<skill-name>/SKILL.md。
+2. 项目专属能力放入项目技能目录；跨项目通用能力可放入全局目录。
+3. 确认工作区目录已被设为可信。
+4. 分别验证 Skill 触发、MCP 工具权限和项目规则生效情况。
 
-本文件不预设具体 IDE 功能或当前账户权限。
+## 已知限制
+- 项目技能目录信任设置会影响发现。
+- Rule、Skill 和 MCP 的职责不可混用。
+- 当前用户账户、版本和工具连接尚未实测。
+
+## 官方来源
+- https://docs.trae.cn/ide_skills

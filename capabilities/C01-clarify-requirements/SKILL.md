@@ -1,10 +1,12 @@
 ---
-id: C01
-name: 需求澄清
-version: 0.1.0
-status: READY
-priority: P0
-minimum_autonomy: A0
+name: pacs-clarify-requirements
+description: "Clarifies ambiguous requests into scoped tasks with deliverables, constraints, and acceptance criteria."
+metadata:
+  pacs_id: C01
+  version: 0.1.0
+  status: READY
+  priority: P0
+  minimum_autonomy: A0
 ---
 
 # C01｜需求澄清

@@ -1,10 +1,12 @@
 ---
-id: C06
-name: 执行监督与恢复
-version: 0.1.0
-status: READY
-priority: P0
-minimum_autonomy: A1
+name: pacs-execution-control-recovery
+description: "Tracks multi-step execution, classifies failures, controls safe retries, and restores work from persisted state."
+metadata:
+  pacs_id: C06
+  version: 0.1.0
+  status: READY
+  priority: P0
+  minimum_autonomy: A1
 ---
 
 # C06｜执行监督与恢复

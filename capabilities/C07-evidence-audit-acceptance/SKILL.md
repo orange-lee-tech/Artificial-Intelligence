@@ -1,10 +1,12 @@
 ---
-id: C07
-name: 证据审计与验收
-version: 0.1.0
-status: READY
-priority: P0
-minimum_autonomy: A0
+name: pacs-evidence-audit-acceptance
+description: "Independently audits deliverables against acceptance criteria using verifiable evidence and explicit test status."
+metadata:
+  pacs_id: C07
+  version: 0.1.0
+  status: READY
+  priority: P0
+  minimum_autonomy: A0
 ---
 
 # C07｜证据审计与验收

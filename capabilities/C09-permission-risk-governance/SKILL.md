@@ -1,10 +1,12 @@
 ---
-id: C09
-name: 权限与风险治理
-version: 0.1.0
-status: READY
-priority: P1
-minimum_autonomy: A0
+name: pacs-permission-risk-governance
+description: "Classifies operational risk, enforces least privilege, and gates high-impact actions behind explicit approval."
+metadata:
+  pacs_id: C09
+  version: 0.1.0
+  status: READY
+  priority: P1
+  minimum_autonomy: A0
 ---
 
 # C09｜权限与风险治理

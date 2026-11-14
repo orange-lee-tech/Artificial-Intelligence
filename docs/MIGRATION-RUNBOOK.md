@@ -1,6 +1,6 @@
 # PACS 跨平台迁移运行手册
 
-版本：0.1.0
+版本：0.1.1
 
 ## 目标
 把同一套个人 AI 工作能力迁移到 Claude、DeepSeek Harness、Trae、WorkBuddy 和豆包，同时保持公共行为和验收标准一致。
@@ -9,40 +9,32 @@
 1. 将 PACS 仓库作为只读知识源或复制到平台工作区。
 2. 导入 PACS-BOOTSTRAP.md。
 3. 导入 Constitution、User Profile 和 Capability Contract。
-4. 不要一次性把所有领域材料塞入全局上下文；按任务加载能力。
+4. 不一次性把所有领域材料塞入全局上下文；按任务加载能力。
 
 ## 阶段 2：平台能力盘点
-对每个平台核实：
-- 全局规则或项目规则的配置位置。
-- Skill / 指令 / 工作流的可复用载入机制。
-- 文件读取和写入方式。
-- 浏览器、MCP、API、CLI、Git 等工具入口。
-- 多 Agent、子任务和并行执行能力。
-- 权限确认、外部副作用和人工审批机制。
-- 会话恢复、长期记忆和项目状态保存能力。
+核实规则入口、Skill 机制、文件读写、工具与连接器、多 Agent、审批、状态保存和账户权限。只记录当前账户实际可用的能力。
 
-只记录当前账户实际可用的能力，并保留证据。不可根据其他用户、地区或订阅档位推断。
+## 阶段 3：生成平台包
+运行 tools/export-skills.py。脚本使用 Python 标准库，将规范 Skill 导出为：
+- Claude：每项 Skill 一个 ZIP，根目录包含技能文件夹和 skill.md。
+- Trae：项目级 .trae/skills/<name>/SKILL.md。
+- DeepSeek Harness：项目级 .dsh/skills/<name>/SKILL.md。
+- Portable：通用源文件副本，供 WorkBuddy、豆包等按各自接入契约导入。
 
-## 阶段 3：能力映射
-优先映射 C01–C08，再映射 C09–C12。每个平台使用相同的能力 ID 和验收标准。平台机制不同可以接受，语义和安全边界不能变。
+导出只是格式转换，不会自动连接工具、创建 Agent 或授予权限。
 
-## 阶段 4：最小实测
-每个平台至少执行：
-- 一项需求澄清任务。
-- 一项跨文件上下文获取任务。
-- 一项多步骤任务拆解与执行。
-- 一项工具不可用或权限不足测试。
-- 一项高风险审批测试。
-- 一项交付证据审计。
-- 一项跨会话交接测试。
+## 阶段 4：平台适配
+- Claude：启用代码执行/文件创建，上传单项 Skill ZIP；MCP/连接器独立配置。
+- DeepSeek Harness：确认 Skill Provider/Loader 和对应 profile 已启用；Workflow、Subagent、Approval 依赖插件。
+- Trae：确认项目目录可信；区分 Rule、Skill 和 MCP。
+- WorkBuddy：确认当前账户的项目空间、Skill/专家和连接器入口。
+- 豆包：确认开放平台 Agent 与消费者端产品的目标边界，再按对应 Skill 契约导入。
 
-完整测试使用 tests/CONFORMANCE-TESTS.md。
+## 阶段 5：最小实测
+每个平台至少执行需求澄清、上下文冲突、工具不可用、高风险审批、交付审计和跨会话交接测试。完整测试见 tests/CONFORMANCE-TESTS.md。
 
-## 阶段 5：形成适配器
-在 adapters/platforms/<platform>/ 下维护 PLATFORM.md、mapping.yaml、tool-registry.yaml、test-results.md 和 known-limitations.md。
-
-## 阶段 6：迁移验收
-一个平台只有在关键测试通过且没有高风险失败时，才可标记 VERIFIED。否则记录 PARTIAL、FAIL 或 NOT_TESTED。
+## 阶段 6：验收
+只有实际运行测试通过且没有高风险失败，才能标记 VERIFIED。公开文档已确认但账户未实测时标记 DOCUMENTED。未核实保持 NOT_TESTED。
 
 ## 推荐推进顺序
-先 Claude 与 DeepSeek Harness，随后 Trae、WorkBuddy，最后豆包。该顺序是本项目的工作优先级，不代表平台能力高低。
+先 Claude 与 DeepSeek Harness，随后 Trae、WorkBuddy，最后豆包。这是本项目的工作优先级，不代表平台能力高低。
