@@ -115,7 +115,15 @@ No remote commands, file writes, data migration, plugin installation, or permiss
 官方 Harness 仍属于开发者预览软件，实际生产适用性与恢复流程尚未验收。不得把聊天回复、工具清单或 GitHub 提交等同于端到端运行验证。  
 Harness remains a developer-preview system. Production suitability and recovery are unverified; a conversational reply, tool list, or GitHub commit must not be presented as end-to-end operational acceptance.
 
-### 参考资料｜References
+### 2026-11-14：批量插件部署计划｜Planned Plugin Batch
+
+**PLANNED / NOT INSTALLED** — 用户要求改成集中批量安装，再统一验收。根据 0.2.2-rc.3 Desktop profile 的官方安装约束，拟选定四个固定版本：Kanban 1.11.3、Better Sidebar 0.32.1、Skill Center 0.4.1、DSH Market 1.73.19。  
+**PLANNED / NOT INSTALLED** — The user prefers a coordinated batch and single validation round. Four exact package versions are proposed for the Desktop profile; this conversation has not executed those installation commands on the Mac.
+
+安装前需退出 Desktop、校验随附 CLI 的版本并制作私有配置备份；安装过程任一失败即停止，不使用强制兼容豁免。完整候选对比、安装顺序与验收标准见 [插件评估](PLUGIN-REVIEW-2026-11-14.md)。  
+Before installation, quit Desktop, verify the bundled CLI version, and create a private backup. Stop on error without compatibility bypass. Details are in [plugin review](PLUGIN-REVIEW-2026-11-14.md).
+
+## 参考资料｜References
 
 - [DeepSeek Harness official repository](https://github.com/deepseek-ai/deepseek-harness)
 - [DeepSeek Harness safety notice](https://github.com/deepseek-ai/deepseek-harness/blob/master/SAFETY.zh.md)

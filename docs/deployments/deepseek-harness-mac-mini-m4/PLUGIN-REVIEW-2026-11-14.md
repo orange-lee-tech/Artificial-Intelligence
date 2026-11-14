@@ -57,3 +57,49 @@
 - [ModLens](https://github.com/liustack/modlens)
 - [Hindsight bridge](https://github.com/Ryu6Zero/dsh-hindsight)
 - [DSH-Kanban](https://github.com/alpacachen/dsh-kanban)
+
+## 2026-11-14 补充：批量安装与新版候选评估｜Batch Installation and Additional Candidates
+
+**状态｜Status: PLANNED — NOT INSTALLED.** 2026-11-14 用户希望将可兼容的扩展集中安装并统一验收。以下仅为经公开源码与官方流程核对后的安装计划，不代表已在 Mac mini 上执行。  
+**Status: PLANNED — NOT INSTALLED.** The user requested a coordinated installation wave followed by one acceptance round. This records the planned operation, not a completed local installation.
+
+### 第一批安装锁定清单｜Batch A: Exact Package Set
+
+| 顺序 / Order | Spec | 用途 / Purpose |
+| --- | --- | --- |
+| 1 | `@alpacachen/dsh-kanban@1.11.3` | 工作区任务看板 / Workspace task board |
+| 2 | `dsh-better-sidebar@0.32.1` | 文件、Git、侧边终端 / Files, Git and side panels |
+| 3 | `dsh-skill-center@0.4.1` | Skills 发现、管理与审查 / Skill discovery and review |
+| 4 | `dshmarket@1.73.19` | 插件发现和诊断 / Plugin discovery and diagnostics |
+
+**执行路径 / Execution path:** 官方 Desktop 随附 CLI 在退出应用后操作 `desktop` profile；或在应用中按官方限制一个 spec 一次连续安装。不得误将 `dsh plugin --profile web add` 作用于不使用的 Web profile。  
+**Execution:** Use the Desktop-bundled CLI against the initialized `desktop` profile with the application fully quit, or use the app UI serial installer. Do not install into an unrelated Web profile.
+
+**前置检查 / Preconditions:** 核对 Desktop CLI 的 `0.2.2-rc.3`、存在已初始化 `~/.dsh/profiles/desktop/package.json`、先对 `~/.dsh` 做本机权限受限备份。包管理报错立即停止；不授权版本豁免、不全局跳过安装脚本审查。  
+**Preconditions:** Verify matching Desktop CLI, initialized Desktop profile, and a private backup of DSH home. Abort on error; do not bypass version incompatibility or globally disable install-script checks.
+
+**统一验收 / Unified acceptance:** 新安装插件显示 active/正确版本；Kanban 测试卡持久化；Better Sidebar 可打开文件和 Git 视图；Skill Center 能列举技能；Market 页面正常；回归文件、Shell、Computer Use 已测基础能力。  
+**Unified acceptance:** Confirm active states and exact versions, a persistent test board card, functioning sidebar, skill inventory, market view, and regressions for file/shell/Computer Use baseline.
+
+### 其他名称核对｜Other Candidate Names
+
+- `Billion Context`：已定位到 `billion-context-dsh`；它影响 DSH 会话压缩与存储路径，应另行审计并做长会话恢复测试。 / Changes compaction behavior; separate acceptance required.
+- `DSH Client UI`：是多种 UI 包的共享前缀，不是可靠的唯一包标识。 / Prefix family, not one unambiguous package.
+- `DSH Client UI Test Board`：尚未确认具体包，可能为 Task Board 的语音识别误差；Kanban 已覆盖第一批任务看板用途。 / Exact package unverified; may be Task Board.
+- `DSH Client UI Git Graph`：存在 `@linxin666/dsh-client-ui-git-graph`，但 Better Sidebar 已有只读 Git 图谱；避免重叠。 / Real package; postpone because of UI overlap.
+- `DSH Client UI Skill Explorer`：存在 `@linxin666/dsh-client-ui-skill-explorer`，与 Skill Center 的部分能力重叠。 / Real package; postpone overlap.
+- `DSH Pet`：存在 `dsh-pet`，属于非关键桌面装饰；作者当前说明明确实测版本以 0.2.2-rc.1 为主。 / Optional; developer-tested version differs from installed host.
+- `DSH Remote Web UI`：有多个不同实现，可能代理 DSH 访问并引入外部认证入口；已有 Tailscale，先规划私有网络访问。 / Multiple incompatible implementations; review authentication and network exposure first.
+- `DSH SSH`：发现 `@dsh-ssh/dsh-ssh`，可将 Shell 与文件工具路由到远端；待 F117 主机认证和工作区边界确定后评估。 / Real remote tool-routing plugin; defer until remote-worker plan.
+- `MemSearch`：优先研究 Zilliz 的 `@zilliz/memsearch-dsh`；需要 `memsearch[onnx]`、Python/uv、首次 embedding 下载与独立配置，数据含 `.memsearch` Markdown；不要与 Hindsight 同时启用自动记忆。 / Zilliz plugin needs Python/uv and embedding setup; do not concurrently enable two automatic memory systems.
+
+### 参考｜References
+
+- [Official Desktop CLI](https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.2.2-rc.3/apps/desktop/README.zh.md)
+- [Official plugin manager UI limitations](https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.2.2-rc.3/packages/client/ui-plugin-manager/README.zh.md)
+- [Billion Context](https://github.com/ranxianglei/billion-context-dsh)
+- [Better Sidebar](https://github.com/omdsh-dev/DSH-better-sidebar)
+- [Skill Center](https://github.com/tuoLuoSuan/dsh-skill-center)
+- [DSH Pet](https://github.com/PC2005-cloud/dsh-pet)
+- [DSH SSH](https://github.com/dsh-ssh/dsh-ssh)
+- [Zilliz MemSearch DSH installation](https://zilliztech.github.io/memsearch/platforms/dsh/installation/)
