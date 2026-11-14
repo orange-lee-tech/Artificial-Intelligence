@@ -4,7 +4,7 @@
 **记录日期｜Recorded:** 2026-11-14  
 **平台｜Platform:** macOS / Apple Silicon (M4)  
 **架构｜Architecture:** DeepSeek Harness Desktop (native) + official DeepSeek API (cloud-first)  
-**总体状态｜Overall status:** PARTIAL — installation and conversational response observed; agent-tool acceptance pending
+**总体状态｜Overall status:** PARTIAL — installation, conversation, baseline file read/write and shell smoke tests evidenced; native automation and recovery pending
 
 ## 目标与范围｜Purpose and Scope
 
@@ -26,7 +26,8 @@ This project follows PACS evidence and acceptance rules. Documentation is not op
 | Harness Desktop | Installed under /Applications; accepted by macOS Gatekeeper; notarized Developer ID | 用户终端输出 / User-provided terminal output |
 | DeepSeek API | API configuration completed; conversational reply received | 用户报告 / User report |
 | Harness version | Not yet recorded / 尚未记录 | UNKNOWN |
-| File, shell, native automation | Not yet independently tested / 尚未实测 | NOT_TESTED |
+| File and shell tools | Basic read/write and `pwd` smoke tests passed / 基础读写和 `pwd` 测试通过 | Harness report + user-supplied terminal cross-check | 
+| Native automation | Not tested / 尚未实测 | NOT_TESTED |
 
 ## 部署决策｜Deployment Decisions
 
@@ -47,8 +48,8 @@ This project follows PACS evidence and acceptance rules. Documentation is not op
 | --- | --- | --- |
 | A. 安装与系统签名 / Install and notarization | VERIFIED via supplied terminal output | App path, Gatekeeper accepted, notarized Developer ID |
 | B. API 模型实际响应 / Live model response | PARTIAL (user-reported) | Confirm selected DeepSeek API provider and record reproducible test |
-| C. 工作区读写 / Workspace read-write | NOT_TESTED | Read an existing test file; write a new file; verify in Finder or terminal |
-| D. Shell 工具执行 / Shell execution | NOT_TESTED | Verify an innocuous command through actual tool trace |
+| C. 工作区读写 / Workspace read-write | PASS — user-supplied evidence | Harness reports read/write/read-back; macOS `cat` confirmed output |
+| D. Shell 工具执行 / Shell execution | PASS — user-reported tool use | `pwd` returned workspace root; raw tool telemetry not independently reviewed |
 | E. macOS 原生自动化 / macOS automation | NOT_TESTED | Independently verify required macOS permissions and one reversible action |
 | F. 备份恢复 / Backup and restore | NOT_TESTED | Recover a non-secret test workspace from backup |
 | G. 扩展节点 / Remote worker integration | NOT_STARTED | Test authenticated, narrowly scoped communication with the F117 worker |
