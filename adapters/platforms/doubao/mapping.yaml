@@ -1,0 +1,14 @@
+platform: Doubao Open Platform
+status: DOCUMENTED
+account_test: NOT_TESTED
+scope_warning: This mapping is based on the Open Platform Skill guide; consumer-app parity is not verified.
+sources:
+  - https://open.doubao.com/document
+skill_mapping:
+  source: capabilities/*/SKILL.md
+  target: platform Skill definition
+  required_content: [structured_instructions, domain_rules, tool_dependencies, references, delivery_criteria]
+tool_mapping:
+  target: connectors for external data and business actions
+workflow_mapping:
+  target: agent composition; exact workflow mechanism must be verified

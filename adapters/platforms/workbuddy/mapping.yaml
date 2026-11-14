@@ -1,0 +1,17 @@
+platform: WorkBuddy
+status: DOCUMENTED
+account_test: NOT_TESTED
+sources:
+  - https://cloud.tencent.com/document/product/1831/134384
+  - https://cloud.tencent.com/product/workbuddy
+context_mapping:
+  target: project space and approved knowledge/materials
+skill_mapping:
+  target: Skill or expert capability; exact import format must be confirmed in current account
+workflow_mapping:
+  target: project task decomposition and multi-agent collaboration
+tool_mapping:
+  target: connectors and authorized local-file operations
+permission_notes:
+  - local file access is limited to authorized directories
+  - external side effects require explicit approval

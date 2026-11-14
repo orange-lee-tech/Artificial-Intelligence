@@ -1,0 +1,31 @@
+---
+name: pacs-task-orchestration
+description: "Breaks goals into executable, dependent, testable tasks with owners, checkpoints, and recovery paths."
+metadata:
+  pacs_id: C04
+  version: 0.1.0
+  status: READY
+  priority: P0
+  minimum_autonomy: A0
+---
+
+# C04｜任务拆解与编排
+
+## Purpose
+将目标拆成可执行、可委派、可检查和可恢复的任务单元。
+
+## Procedure
+1. 将验收标准映射为交付阶段。
+2. 拆分任务，保持每个单元有明确输入、输出和负责人。
+3. 标注依赖、关键路径、可并行项和共享写入资源。
+4. 为每个阶段设置完成条件、检查点和退出条件。
+5. 标出高风险步骤并设置人工审批。
+6. 估计成本、时间、工具和上下文需求，不制造虚假精确度。
+7. 设计失败、回退和恢复路径。
+8. 形成最小可行计划，避免过度设计。
+
+## Output
+任务树或任务表，至少含 ID、任务、依赖、执行者、输入、输出、权限、验收和状态。
+
+## Acceptance
+任务依赖清楚，无孤立交付物；重要风险有检查点；每个子任务可独立验收。

@@ -1,0 +1,4 @@
+# Generated platform export packages
+/dist/
+__pycache__/
+*.pyc

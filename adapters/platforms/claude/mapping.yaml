@@ -1,0 +1,18 @@
+platform: Claude
+status: DOCUMENTED
+account_test: NOT_TESTED
+sources:
+  - https://support.claude.com/en/articles/12512180-use-skills-in-claude
+  - https://support.claude.com/en/articles/12512198-creating-custom-skills
+skill_mapping:
+  source: capabilities/*/SKILL.md
+  target: one ZIP per skill folder
+  target_entry_file: skill.md
+  metadata: name + description; PACS fields nested under metadata
+  notes:
+    - Enable code execution and file creation before using custom Skills in claude.ai.
+    - Claude Code and claude.ai use different Skill installation paths.
+workflow_mapping:
+  target: project-level instructions and composition of focused Skills
+tool_mapping:
+  target: MCP connectors and other enabled tools; do not embed tool access inside the Skill definition

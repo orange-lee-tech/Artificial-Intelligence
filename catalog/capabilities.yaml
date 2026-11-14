@@ -1,0 +1,15 @@
+version: 0.1.0
+system: PACS
+capabilities:
+  - {id: C01, name: 需求澄清, priority: P0, status: READY, maturity: "V+A", path: capabilities/C01-clarify-requirements/SKILL.md}
+  - {id: C02, name: 上下文获取, priority: P0, status: READY, maturity: "V+S+A", path: capabilities/C02-context-acquisition/SKILL.md}
+  - {id: C03, name: 问题建模, priority: P0, status: READY, maturity: "V+A", path: capabilities/C03-problem-modeling/SKILL.md}
+  - {id: C04, name: 任务拆解与编排, priority: P0, status: READY, maturity: "V+S+A", path: capabilities/C04-task-orchestration/SKILL.md}
+  - {id: C05, name: 工具选择与委派, priority: P0, status: READY, maturity: "V+A", path: capabilities/C05-tool-routing-delegation/SKILL.md}
+  - {id: C06, name: 执行监督与恢复, priority: P0, status: READY, maturity: "V+S+A", path: capabilities/C06-execution-control-recovery/SKILL.md}
+  - {id: C07, name: 证据审计与验收, priority: P0, status: READY, maturity: "V+S+A", path: capabilities/C07-evidence-audit-acceptance/SKILL.md}
+  - {id: C08, name: 状态持久化与交接, priority: P0, status: READY, maturity: "V+S+A", path: capabilities/C08-state-persistence-handoff/SKILL.md}
+  - {id: C09, name: 权限与风险治理, priority: P1, status: READY, maturity: "S+A", path: capabilities/C09-permission-risk-governance/SKILL.md}
+  - {id: C10, name: 事实溯源与语义保真, priority: P1, status: READY, maturity: "V+A", path: capabilities/C10-provenance-semantic-fidelity/SKILL.md}
+  - {id: C11, name: 交付物质量控制, priority: P1, status: READY, maturity: "V+A", path: capabilities/C11-artifact-quality-control/SKILL.md}
+  - {id: C12, name: 能力抽象与维护, priority: P1, status: READY, maturity: "V+S+A", path: capabilities/C12-capability-mining-maintenance/SKILL.md}

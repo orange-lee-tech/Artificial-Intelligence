@@ -1,0 +1,20 @@
+platform: DeepSeek Harness
+status: DOCUMENTED
+account_test: NOT_TESTED
+preview_status: DEVELOPER_PREVIEW
+sources:
+  - https://github.com/deepseek-ai/deepseek-harness
+  - https://github.com/deepseek-ai/deepseek-harness/tree/master/packages/skill
+  - https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/subsystems/workflow.md
+skill_mapping:
+  source: capabilities/*/SKILL.md
+  target: .dsh/skills/<skill-name>/SKILL.md
+  alternate_target: .agents/skills/<skill-name>/SKILL.md
+  required_frontmatter: [name, description]
+  runtime_dependencies: [dsh-skill, dsh-skill-filesystem, dsh-tool-skill]
+workflow_mapping:
+  target: workflow tool scripts and subagent composition
+  runtime_dependencies: [dsh-workflow, dsh-workflow-ptc, dsh-tool-workflow, subagent provider]
+approval_mapping:
+  target: user-approval and permission policy
+  fail_closed: true

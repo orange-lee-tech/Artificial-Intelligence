@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pacs.local/schemas/result-envelope.schema.json",
+  "title": "PACS Result Envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["task_id", "status", "summary", "evidence", "unresolved"],
+  "properties": {
+    "task_id": {"type": "string"},
+    "status": {"enum": ["NOT_STARTED", "IN_PROGRESS", "BLOCKED", "COMPLETED", "VERIFIED", "ACCEPTED"]},
+    "summary": {"type": "string"},
+    "artifacts": {"type": "array", "items": {"type": "object", "properties": {"name": {"type": "string"}, "location": {"type": "string"}, "status": {"type": "string"}}, "required": ["name"]}},
+    "evidence": {"type": "array", "items": {"type": "object", "properties": {"claim": {"type": "string"}, "source": {"type": "string"}, "result": {"type": "string"}}, "required": ["claim", "result"]}},
+    "assumptions": {"type": "array", "items": {"type": "string"}},
+    "risks": {"type": "array", "items": {"type": "string"}},
+    "unresolved": {"type": "array", "items": {"type": "string"}},
+    "next_actions": {"type": "array", "items": {"type": "string"}},
+    "human_approval": {"type": "boolean"}
+  }
+}

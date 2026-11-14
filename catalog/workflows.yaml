@@ -1,0 +1,7 @@
+version: 0.1.0
+workflows:
+  - {id: W01, name: 软件产品交付, path: workflows/W01-software-delivery.md, sequence: [C01, C02, C03, C04, C05, C06, C07, C08]}
+  - {id: W02, name: 研究与报告, path: workflows/W02-research-report.md, sequence: [C01, C02, C03, C04, C05, C07, C10, C11, C08]}
+  - {id: W03, name: 内容生产, path: workflows/W03-content-production.md, sequence: [C01, C02, C03, C04, C05, C06, C07, C10, C11]}
+  - {id: W04, name: 决策支持, path: workflows/W04-decision-support.md, sequence: [C01, C02, C03, C04, C07, C09, C10, C08]}
+  - {id: W05, name: 教育与训练, path: workflows/W05-education-training.md, sequence: [C01, C02, C03, C04, C06, C07, C08]}

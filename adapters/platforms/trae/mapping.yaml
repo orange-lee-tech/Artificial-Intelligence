@@ -1,0 +1,17 @@
+platform: TRAE
+status: DOCUMENTED
+account_test: NOT_TESTED
+sources:
+  - https://docs.trae.cn/ide_skills
+skill_mapping:
+  source: capabilities/*/SKILL.md
+  project_target: .trae/skills/<skill-name>/SKILL.md
+  global_target_windows: "%userprofile%/.trae-cn/skills/<skill-name>/SKILL.md"
+  global_target_unix: "~/.trae-cn/skills/<skill-name>/SKILL.md"
+  required_frontmatter: [name, description]
+rule_mapping:
+  target: project/global Rules for persistent constraints
+tool_mapping:
+  target: MCP Server configuration; MCP provides tools, Skills provide procedures
+precondition:
+  - project directory must be trusted for project Skills to load
