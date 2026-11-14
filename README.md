@@ -160,6 +160,8 @@ The exporter generates Claude ZIP packages, project-level Skill directories for 
   Generate initial platform import packages.
 - [项目状态模板｜Project State Template](templates/PROJECT-STATE.md)：跨会话、跨模型和跨人员交接项目。  
   Handoff projects across sessions, models, and people.
+- [AI 协作行为规范｜AI Collaboration Principles](docs/AI-COLLABORATION-PRINCIPLES.md)：查看适用于 ChatGPT 个性化指令及跨模型协作的基础行为规范。  
+  Review the reusable behavioral baseline for ChatGPT personalization and cross-model AI collaboration.
 - [仓库协作约定｜Repository Working Agreement](docs/REPOSITORY-WORKING-AGREEMENT.md)：查看 main 分支直接施工规则。  
   Review the direct-to-main repository workflow.
 
