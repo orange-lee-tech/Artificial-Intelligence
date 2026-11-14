@@ -51,6 +51,23 @@
 - 后续先核查审批策略与工作区管理，再做有限、可逆的 macOS 自动化测试。  
   Next audit the approval policy and workspace management, then conduct a narrow, reversible native macOS automation test.
 
+## 2026-11-14：版本、权限与插件发现｜Version, Permissions and Plugin Discovery
+
+**USER_REPORTED — 设置截图 / User-provided settings screenshots:** 桌面版版本为 `0.2.2-rc.3`；默认 Agent 为 Standard；通用设置的新会话权限为“工作区内修改”；更新渠道显示“开发版”。插件列表中 Computer Use 和自定义插件索引均列为随附的实验性项目，截图显示它们尚未启用。  
+**USER_REPORTED — Settings screenshots:** Desktop version is `0.2.2-rc.3`; default agent preset is Standard; new sessions default to Workspace Write; update channel shows Nightly/Development. Computer Use and Custom Plugin Index are bundled experimental items and appeared disabled.
+
+**FACT — 官方发布与分发 / Official release and distribution:** 官方 `deepseek-ai/deepseek-harness` 发布 `dsh-v0.2.2-rc.3` 于 2026-11-13，属于预发布版本，官方该 Release 未提供 `.dmg` 附件；DeepSeek 官方网站提供桌面安装包。先前用户的 Gatekeeper 公证验证结果支持继续使用当前安装，无需为切换下载渠道而重装。  
+**FACT — Official release and distribution:** The official `dsh-v0.2.2-rc.3` release was published on 2026-11-13 as a prerelease and had no `.dmg` release attachment; DeepSeek distributes the Desktop installer through its website. The user's prior Gatekeeper notarization check supports retaining the current installation rather than reinstalling merely to change the download channel.
+
+**ASSESSMENT — 权限验证 / Permissions:** 以上通用默认权限不自动决定已有会话的权限。模型此前关于沙箱和批准的文字不构成独立配置审计；待检查当前会话权限和系统授权。  
+**ASSESSMENT — Permissions:** A global default does not retroactively control existing sessions. The model's earlier assertions about sandbox and approvals are not an independent permissions audit; actual session and OS grants remain to be inspected.
+
+**PROPOSAL — 插件策略 / Plugin strategy:** 先使用官方内置 Computer Use 与 MCP Manager，逐个进行可逆测试；Kanban、ModLens、Hindsight 和 Market 按版本、依赖与安全性审核后再决定安装。详见 [插件评估](PLUGIN-REVIEW-2026-11-14.md)。  
+**PROPOSAL — Plugin strategy:** Validate bundled Computer Use and MCP Manager first with narrow, reversible tests. Assess Kanban, ModLens, Hindsight, and Market for exact-version compatibility, dependencies, and safety before installation; see [plugin review](PLUGIN-REVIEW-2026-11-14.md).
+
+**NOT_TESTED:** 本次未安装或启用任何插件，未复核更新渠道变更，未取得 Mac 原生 Computer Use 的实际执行轨迹。  
+**NOT_TESTED:** No plugin was installed or enabled in this record-keeping step; update-channel changes and macOS Computer Use execution were not tested.
+
 ### 设计决策｜Architecture Decisions
 
 - **DECISION — 主 Harness 原生部署 / Native primary runtime:** Prefer the official macOS Desktop application over a Dockerized principal agent; future ancillary services may use Docker.  
@@ -62,7 +79,7 @@
 
 ### 仍需验证｜Outstanding Acceptance Work
 
-- [ ] 记录应用「关于 DeepSeek Harness」中显示的实际版本 / Record the installed Desktop version.
+- [x] 记录桌面端设置截图显示的版本 `0.2.2-rc.3` / Record Desktop version `0.2.2-rc.3` from the user-supplied settings screenshot.
 - [ ] 复核 API 提供商与模型身份，完成一条可复现的短对话 / Check selected provider and model; run one reproducible short prompt.
 - [x] 创建专用无敏感数据的测试工作区；由 Agent 实际读取与新建文件，并从 macOS 侧核验（用户提供交叉验证输出） / Verify read/write against a disposable workspace (user-supplied terminal cross-check).
 - [x] 执行无副作用的 shell 查询（用户提供 `pwd` 的 Harness 执行报告；完整工具事件轨迹未独立审阅） / Harmless shell command reported by the user (`pwd`); raw tool-event telemetry not independently reviewed.

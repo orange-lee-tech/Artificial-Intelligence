@@ -25,7 +25,7 @@ This project follows PACS evidence and acceptance rules. Documentation is not op
 | Docker | CLI 29.7.1, Compose 5.4.0, context desktop-linux; Docker daemon not reachable during check | 用户终端输出 / User-provided terminal output |
 | Harness Desktop | Installed under /Applications; accepted by macOS Gatekeeper; notarized Developer ID | 用户终端输出 / User-provided terminal output |
 | DeepSeek API | API configuration completed; conversational reply received | 用户报告 / User report |
-| Harness version | Not yet recorded / 尚未记录 | UNKNOWN |
+| Harness version | 0.2.2-rc.3 / 截图显示版本 | 用户 UI 截图 / User-supplied UI screenshot |
 | File and shell tools | Basic read/write and `pwd` smoke tests passed / 基础读写和 `pwd` 测试通过 | Harness report + user-supplied terminal cross-check | 
 | Native automation | Not tested / 尚未实测 | NOT_TESTED |
 
@@ -57,6 +57,7 @@ This project follows PACS evidence and acceptance rules. Documentation is not op
 ## 文档索引｜Document Index
 
 - [DEPLOYMENT-LOG.md](DEPLOYMENT-LOG.md) — 按日期记录事实、决策、待办和验证证据 / Dated evidence, decisions, follow-up tasks, and acceptance notes.
+- [PLUGIN-REVIEW-2026-11-14.md](PLUGIN-REVIEW-2026-11-14.md) — 五款候选插件评估及下载渠道核对 / Five candidate plugins and official distribution-channel review.
 
 ## 公开仓库约束｜Public Repository Boundaries
 
