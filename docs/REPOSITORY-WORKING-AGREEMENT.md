@@ -22,17 +22,17 @@ If remote `main` has changed, reassess the edit against the latest version. Neve
 
 ## 3. 直接提交流程｜Direct Commit Workflow
 
-1. 确认目标、影响范围和验收标准。
+1. 确认目标、影响范围和验收标准。  
    Confirm the goal, impact scope, and acceptance criteria.
-2. 读取最新 `main` 和相关文件。
+2. 读取最新 `main` 和相关文件。  
    Read the latest `main` and relevant files.
-3. 在当前工作状态下完成修改，不创建新分支。
+3. 在当前工作状态下完成修改，不创建新分支。  
    Make the changes in the current working state without creating a new branch.
-4. 审查文件差异、引用路径、格式和必要测试。
+4. 审查文件差异、引用路径、格式和必要测试。  
    Review file diffs, references, formatting, and required tests.
-5. 基于最新 `main` 提交，并使用预期提交 SHA 防止覆盖并发更新。
+5. 基于最新 `main` 提交，并使用预期提交 SHA 防止覆盖并发更新。  
    Commit against the latest `main`, using the expected commit SHA to prevent overwriting concurrent updates.
-6. 重新读取远程文件和提交状态，确认修改已经生效。
+6. 重新读取远程文件和提交状态，确认修改已经生效。  
    Fetch the remote files and commit status again to verify that the change took effect.
 
 ## 4. 并发与冲突｜Concurrency and Conflicts
@@ -64,8 +64,8 @@ A successful file write is not the same as quality acceptance; mark checks as ve
 
 ## 7. 文档语言规范｜Documentation Language Standard
 
-根目录 `README.md` 及正式面向使用者的说明文档默认采用中英双语，逐段对应，中文在上、英文在下。
-The root `README.md` and formal user-facing documentation should default to Chinese and English, translated paragraph by paragraph, with Chinese first and English immediately below.
+根目录 `README.md` 必须采用中英双语；今后新增或实质性修订的正式面向使用者说明文档，也默认逐段对应，中文在上、英文在下。
+The root `README.md` must be bilingual. New or substantially revised formal user-facing documents should also use paragraph-by-paragraph Chinese-English translation, with Chinese first and English immediately below.
 
 代码、命令、文件路径、标识符和 API 字段保持原样，不需要翻译；可以在代码块前后添加中文解释，并在需要时补充英文说明。
 Code, commands, file paths, identifiers, and API fields must remain unchanged and do not need translation. Chinese explanations may be added around code blocks, with English explanations where appropriate.
