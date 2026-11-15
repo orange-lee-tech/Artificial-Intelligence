@@ -2,7 +2,7 @@
 # Local Model Runtime and Model Selection Record
 
 **记录日期 / Recorded:** 2026-11-15  
-**版本 / Version:** 0.1.0  
+**版本 / Version:** 0.1.1  
 **状态 / Status:** RECOMMENDED — NOT INSTALLED / 已形成推荐 — 尚未安装  
 **目标主机 / Target host:** Mac mini M4, Apple Silicon, 16 GiB unified memory  
 **Harness / Host baseline:** DeepSeek Harness Desktop 0.2.2-rc.3, macOS 26.2（均为既有部署档案记录，尚未在本次研究中重新读取设备实时状态） / Both are recorded in the existing deployment dossier and were not re-read from the live host during this research.
@@ -134,10 +134,10 @@ The local model does not need to call MCP itself. The cloud model calls the MCP 
 
 ## 6. 资源预算与运行策略｜Resource Budget and Runtime Policy
 
-既有部署记录显示上次检查时内置盘约有 146 GiB 可用；外置 1 TB SSD 的格式、卷名和稳定性仍未核实。  
-The existing deployment record showed approximately 146 GiB free on the internal drive at the last inspection; the external 1 TB SSD's format, volume name, and reliability remain unverified.
+根据 2026-11-15 用户提供的 `diskutil`、`df` 和目录创建结果，外接 TS900 SSD 1 TB 已挂载为 APFS、连接协议 USB、设备位置 External、Solid State 为 Yes，挂载点为 `/Volumes/SSD`；报告显示剩余约 949 GiB，临时文件写入和 AI 工作目录创建成功。这证明了当时的挂载与读写功能，不证明长期在线稳定性或存在异盘备份。  
+User-provided `diskutil`, `df`, and directory-creation results dated 2026-11-15 establish that the external 1 TB TS900 SSD was mounted as APFS over USB, reported External location and Solid State = Yes, mounted at `/Volumes/SSD`, had about 949 GiB available, and passed a temporary-file write check and AI workspace creation. These results verify mount and write access at that time, not long-term reliability or an independent backup.
 
-- Ollama macOS 默认模型目录为 `~/.ollama/models`；Qwen3.5-4B Q4_K_M 约 3.3 GB 的模型文件可先保留在内部盘默认目录，不为该模型提前迁移外置 SSD。 / Ollama's default macOS model directory is `~/.ollama/models`; the approximately 3.3 GB Qwen3.5-4B Q4_K_M file can remain on the internal drive initially, without migrating the external SSD in advance.
+- Ollama macOS 默认模型目录为 `~/.ollama/models`；但本项目已有可写的外接 SSD 工作空间，模型仓库优先规划在 `/Volumes/SSD/AI-Workspace/models`，避免占用内部系统盘。官方支持以 `OLLAMA_MODELS` 指定模型目录；macOS 应用运行时需由 `launchctl` 设置环境变量并重启应用。**尚未安装 Ollama、设置该变量或搬迁任何权重**；实际施工前须再次确认 SSD 挂载、可写、目录属主和断盘恢复策略。 / Ollama's macOS default is `~/.ollama/models`, but this project has a writable external SSD workspace, so prefer planning its model store at `/Volumes/SSD/AI-Workspace/models` to conserve internal storage. Official documentation supports `OLLAMA_MODELS` for the directory; a macOS app requires `launchctl` environment configuration and an app restart. **No Ollama installation, environment setting, or weight migration has occurred**; recheck mount state, writability, ownership, and disconnect recovery before deployment.
 - 实际内存包含权重、KV Cache、运行时、macOS、Harness、浏览器和其他后台程序；模型文件大小不等于运行时 RAM。 / Actual memory use includes weights, KV cache, runtime, macOS, Harness, browser, and background processes; model-file size is not runtime RAM.
 - 首轮只安装一个模型；不并行常驻多个模型。 / Install only one model in the first phase; do not keep multiple models resident.
 - 首轮任务输入上限建议 8K–16K；长资料通过本地分块处理。 / Start with an 8K–16K task-input cap; process long sources in local chunks.
@@ -182,11 +182,15 @@ The existing deployment record showed approximately 146 GiB free on the internal
 4. DeepSeek Harness 云端模型在当前账户与会话中是否能稳定发起 MCP 工具调用。 / Whether the cloud model in the current Harness account/session reliably initiates MCP calls.
 5. 只读本地资料目录的授权范围与路径白名单。 / Authorized read-only local source roots and path allowlists.
 6. 代表性任务集、云端费用基线和可接受的人工返工成本。 / Representative task set, cloud-cost baseline, and acceptable human rework cost.
+7. 长期 SSD 可靠性、自动重挂载、独立备份，以及外接盘断开时推理服务如何安全停止。 / Long-term SSD reliability, automatic remounting, an independent backup, and safe inference-service shutdown if the external volume disconnects.
+
+**选型证据界限 / Evidence limit on selection:** Ollama + Qwen3.5-4B 是当前资料支持的单模型施工候选，不是已经证明在 PACS 工作负载中质量、推理速度、资源占用或净节省最优的组合。其余候选仍保留在纸面评估，不为比较目的批量安装。 / Ollama + Qwen3.5-4B is a documentation-backed single-model deployment candidate, not a proven winner for quality, speed, memory use, or net savings on PACS workloads. Alternatives remain paper-only; do not install multiple models merely to compare them.
 
 ## 10. 参考资料｜References
 
 - [Ollama macOS requirements and installation](https://github.com/ollama/ollama/blob/main/docs/macos.mdx)
 - [Ollama default host, model directory, and keep-alive configuration](https://github.com/ollama/ollama/blob/main/envconfig/config.go)
+- [Ollama FAQ — OLLAMA_MODELS and macOS launchctl environment](https://github.com/ollama/ollama/blob/main/docs/faq.mdx)
 - [Ollama API — chat, structured outputs, tool calling, keep_alive](https://github.com/ollama/ollama/blob/main/docs/api.md)
 - [Ollama Qwen3.5 model and tags](https://ollama.com/library/qwen3.5)
 - [Qwen3.5-4B official model card and benchmarks](https://huggingface.co/Qwen/Qwen3.5-4B)
