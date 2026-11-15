@@ -144,6 +144,8 @@ The exporter generates Claude ZIP packages, project-level Skill directories for 
   Review the collaboration preferences and work scenarios to be transferred.
 - [架构说明｜Architecture](docs/04-ARCHITECTURE.md)：了解能力、工作流、Agent、Harness 和工具之间的关系。  
   Understand how capabilities, workflows, agents, harnesses, and tools fit together.
+- [执行能力与模型路由设计｜Execution Capability and Model Routing](docs/05-EXECUTION-CAPABILITY-AND-MODEL-ROUTING.md)：查看本地工具、本地小模型、云端大模型与人类控制层的职责分工及协同规则。  
+  Review responsibilities and collaboration rules for local tools, the local small model, the cloud large model, and human control.
 - [能力目录｜Capability Catalog](catalog/capabilities.yaml)：查看 C01–C12 的能力索引。  
   Browse the C01–C12 capability index.
 - [工作流目录｜Workflow Catalog](catalog/workflows.yaml)：查看 W01–W05 的工作流索引。  

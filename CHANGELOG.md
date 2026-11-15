@@ -1,5 +1,9 @@
 # Changelog
 
+## [Unreleased]
+### Added
+- PACS 执行能力与模型职责路由设计：定义云端模型通过本地 Harness 桥接委派本地推理、C01–C12 与 W01–W05 职责矩阵、权限边界、成本核算及验收门槛。该设计尚未部署或实测。 / Added the PACS execution-capability and model-routing design, including cloud-initiated local inference through the local Harness bridge, C01–C12 and W01–W05 responsibility matrices, permission boundaries, cost accounting, and acceptance gates. Design only; not deployed or tested.
+
 ## [0.1.1] - 2026-11-14
 ### Added
 - 官方平台文档核对结果与平台级 Adapter 映射。

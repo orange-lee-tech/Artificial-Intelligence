@@ -58,6 +58,7 @@ This project follows PACS evidence and acceptance rules. Documentation is not op
 
 - [DEPLOYMENT-LOG.md](DEPLOYMENT-LOG.md) — 按日期记录事实、决策、待办和验证证据 / Dated evidence, decisions, follow-up tasks, and acceptance notes.
 - [PLUGIN-REVIEW-2026-11-14.md](PLUGIN-REVIEW-2026-11-14.md) — 五款候选插件评估及下载渠道核对 / Five candidate plugins and official distribution-channel review.
+- [执行能力与模型路由设计](../../05-EXECUTION-CAPABILITY-AND-MODEL-ROUTING.md) — 云端模型委派本地推理、模型职责矩阵、Mac mini 资源约束和验收标准 / Execution routing, cloud-initiated local inference, responsibility matrix, Mac mini constraints, and acceptance criteria.
 
 ## 公开仓库约束｜Public Repository Boundaries
 
