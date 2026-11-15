@@ -43,8 +43,8 @@ The first phase recommends one stack:
 
 - 官方 macOS 文档要求 macOS Sonoma 14 或更新版本；Apple M 系列支持 CPU 和 GPU。既有部署档案记录的 macOS 26.2 满足版本条件，但仍需在本机核对实际安装与运行状态。  
   Official macOS documentation requires macOS Sonoma 14 or newer and supports CPU/GPU on Apple M-series devices. The recorded macOS 26.2 meets the OS-version requirement, but actual installation and runtime status still need host-side verification.
-- 本地聊天 API 为 `http://127.0.0.1:11434/api/chat`（部署时须确认服务只监听 loopback；不得设置成公网或局域网可访问地址）。  
-  The local chat API is `http://127.0.0.1:11434/api/chat` (verify at deployment that it listens only on loopback; do not expose it to the public internet or LAN).
+- 本地聊天 API 默认位于 `http://127.0.0.1:11434/api/chat`；Ollama 源码中的默认监听地址为 `127.0.0.1:11434`，可由 `OLLAMA_HOST` 改变。该本地 API 默认不应被视为有网络身份认证的服务；部署时必须确认 `OLLAMA_HOST` 未被改为 `0.0.0.0` 或其他非 loopback 地址。  
+  The local chat API defaults to `http://127.0.0.1:11434/api/chat`; Ollama source defines `127.0.0.1:11434` as the default bind address, configurable through `OLLAMA_HOST`. Do not treat this local API as a network-authenticated service; verify that `OLLAMA_HOST` has not been changed to `0.0.0.0` or another non-loopback address.
 - `format` 接受 JSON Schema；`keep_alive` 默认 5 分钟，设为 0 可卸载模型。  
   `format` accepts JSON Schema; `keep_alive` defaults to five minutes and can be set to 0 to unload a model.
 - 第一阶段使用 Ollama 原生 API，不把 DeepSeek Harness 的主模型提供商改为 Ollama。  
@@ -112,8 +112,8 @@ The actual cost-optimization path is:
 小型 `inline_input` 仍可用于短文本任务，但必须在成本记录中标记为“内联输入”；它适合减少复杂任务委派开销，不应被误记为替代了已经发送到云端的大段文本。  
 Small `inline_input` payloads remain useful for short-text tasks, but must be marked as inline input in cost records. They reduce delegation overhead for bounded tasks; they must not be counted as replacing large text that was already sent to the cloud.
 
-**权限边界：** 本地 MCP Server 的文件读取能力应仅限一个或多个明确的只读工作区根目录。禁止任意绝对路径、目录遍历、任意 Shell、写入、删除、上传和网络转发。公开仓库只记录接口与规则，不记录真实私人目录、Token 或客户文件。  
-**Permission boundary:** The local MCP server's read access must be limited to explicitly configured read-only workspace roots. Deny arbitrary absolute paths, path traversal, arbitrary shell, writes, deletion, uploads, and network forwarding. The public repository records interfaces and rules only, never private directory paths, tokens, or customer files.
+**权限边界：** 本地 MCP Server 的文件读取能力应仅限一个或多个明确的只读工作区根目录。禁止任意绝对路径、目录遍历、符号链接逃逸、任意 Shell、写入、删除、上传和网络转发。DeepSeek Harness 通过 stdio 启动的 MCP 进程通常继承当前用户的操作系统权限；代码级 allowlist 不等于 OS 沙箱。若后续需要更强隔离，应单独评估受限 macOS 用户或操作系统沙箱。公开仓库只记录接口与规则，不记录真实私人目录、Token 或客户文件。  
+**Permission boundary:** The local MCP server's file access must be limited to explicitly configured read-only workspace roots. Deny arbitrary absolute paths, path traversal, symlink escapes, arbitrary shell, writes, deletion, uploads, and network forwarding. An MCP process launched by DeepSeek Harness over stdio normally inherits the current user's OS permissions; an application-level allowlist is not an OS sandbox. If stronger isolation is later required, separately evaluate a restricted macOS user or OS sandbox. The public repository records interfaces and rules only, never private directory paths, tokens, or customer files.
 
 对于不允许把任何原始数据或敏感结果发回云端的任务，应使用本地闭环工作流，不应把“本地推理”误称为“端到端数据不出本机”。  
 For tasks where neither raw data nor sensitive results may be sent to the cloud, use a fully local workflow. Do not equate local inference with an end-to-end guarantee that no data leaves the machine.
@@ -137,7 +137,7 @@ The local model does not need to call MCP itself. The cloud model calls the MCP 
 既有部署记录显示上次检查时内置盘约有 146 GiB 可用；外置 1 TB SSD 的格式、卷名和稳定性仍未核实。  
 The existing deployment record showed approximately 146 GiB free on the internal drive at the last inspection; the external 1 TB SSD's format, volume name, and reliability remain unverified.
 
-- Qwen3.5-4B Q4_K_M 约 3.3 GB 的模型文件可先考虑保留在默认本地模型存储位置；不为该模型提前迁移外置 SSD。 / The approximately 3.3 GB Qwen3.5-4B Q4_K_M file can initially remain in the default local model store; do not migrate the external SSD for this model in advance.
+- Ollama macOS 默认模型目录为 `~/.ollama/models`；Qwen3.5-4B Q4_K_M 约 3.3 GB 的模型文件可先保留在内部盘默认目录，不为该模型提前迁移外置 SSD。 / Ollama's default macOS model directory is `~/.ollama/models`; the approximately 3.3 GB Qwen3.5-4B Q4_K_M file can remain on the internal drive initially, without migrating the external SSD in advance.
 - 实际内存包含权重、KV Cache、运行时、macOS、Harness、浏览器和其他后台程序；模型文件大小不等于运行时 RAM。 / Actual memory use includes weights, KV cache, runtime, macOS, Harness, browser, and background processes; model-file size is not runtime RAM.
 - 首轮只安装一个模型；不并行常驻多个模型。 / Install only one model in the first phase; do not keep multiple models resident.
 - 首轮任务输入上限建议 8K–16K；长资料通过本地分块处理。 / Start with an 8K–16K task-input cap; process long sources in local chunks.
@@ -186,6 +186,7 @@ The existing deployment record showed approximately 146 GiB free on the internal
 ## 10. 参考资料｜References
 
 - [Ollama macOS requirements and installation](https://github.com/ollama/ollama/blob/main/docs/macos.mdx)
+- [Ollama default host, model directory, and keep-alive configuration](https://github.com/ollama/ollama/blob/main/envconfig/config.go)
 - [Ollama API — chat, structured outputs, tool calling, keep_alive](https://github.com/ollama/ollama/blob/main/docs/api.md)
 - [Ollama Qwen3.5 model and tags](https://ollama.com/library/qwen3.5)
 - [Qwen3.5-4B official model card and benchmarks](https://huggingface.co/Qwen/Qwen3.5-4B)
