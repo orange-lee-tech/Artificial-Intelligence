@@ -186,6 +186,23 @@ User-provided `diskutil`, `df`, and directory-creation results dated 2026-11-15 
 
 **选型证据界限 / Evidence limit on selection:** Ollama + Qwen3.5-4B 是当前资料支持的单模型施工候选，不是已经证明在 PACS 工作负载中质量、推理速度、资源占用或净节省最优的组合。其余候选仍保留在纸面评估，不为比较目的批量安装。 / Ollama + Qwen3.5-4B is a documentation-backed single-model deployment candidate, not a proven winner for quality, speed, memory use, or net savings on PACS workloads. Alternatives remain paper-only; do not install multiple models merely to compare them.
 
+
+## 9A. 2026-11-15 本机预检补充｜Mac mini Pre-deployment Audit Addendum
+
+**证据等级：用户转发的机器人执行报告；尚未由本仓库远程访问主机独立复测。** 该报告显示 M4 16 GiB、Swap 使用量 0、当次 `memory_pressure` 报告可用约 59%，SSD 以 APFS 挂载且可写，模型目录为空，Ollama 未安装、11434 端口未监听，现有 Harness 与微信链路工作。以上仅为检查时的快照；内存压力、驻留容量和断盘恢复仍未通过长期负载测试。  
+**Evidence level: user-forwarded agent execution report, not independently replayed on the host by this repository.** The report shows 16 GiB RAM, no swap in use, approximately 59% available memory from a contemporaneous `memory_pressure` report, a mounted writable APFS SSD, an empty model directory, no installed Ollama, no listener on port 11434, and functioning Harness/WeChat paths. These are point-in-time observations, not a long-duration test of memory headroom, residency, or SSD-disconnect recovery.
+
+**Desktop MCP 接入结论：优先复用已内置的 MCP Manager，而非手写静态 client 配置。** DeepSeek Harness `dsh-v0.2.2-rc.3` 的 `packages/bundle/web-app/cordis.patch.yml` 已声明 `id: mcp-manager`、`@deepseek-ai/dsh-mcp-manager`。官方 MCP Manager README 明确说明动态服务器可由 Settings/ConfigEditor 持久配置并进行运行时对账。Desktop 通过 Electron 管理独占 Profile，不能把 CLI `--profile desktop --dump-config` 失败解读为缺少 MCP 功能。也不能仅凭 `app.asar` 中的字符串或 profile `node_modules` 是否包含 MCP SDK 判断管理器当前是否已加载。下一步必须在 Desktop 实际界面确认 `mcp-manager` 的运行状态和配置入口；若不可见，标记 BLOCKED，不直接编辑独占 Profile。  
+**Desktop MCP integration decision: reuse the bundled MCP Manager rather than adding a static client row.** The official `dsh-v0.2.2-rc.3` `packages/bundle/web-app/cordis.patch.yml` declares `id: mcp-manager` and `@deepseek-ai/dsh-mcp-manager`. Its README documents Settings/ConfigEditor persistence and live reconciliation for dynamic server entries. Electron owns the Desktop profile exclusively; a failing CLI `--profile desktop --dump-config` is not evidence that MCP is unsupported. Strings in `app.asar` and the presence or absence of an MCP SDK under profile `node_modules` are not proof of a running MCP Manager. Confirm the live `mcp-manager` and its Settings entry in Desktop; if unavailable, mark BLOCKED rather than editing the exclusively managed profile directly.
+
+**重连修正：** `dsh-mcp-client` 的 `reconnect.enabled` 默认为 `true`；初始 500 ms，指数退避至 30 s，连续失败最多 10 次。耗尽后需管理器重启或重新加载配置。此前“断线后不会自动重连”的说法不符合该版本官方文档。  
+**Reconnect correction:** `dsh-mcp-client` defaults to `reconnect.enabled: true`, with a 500 ms initial delay, exponential backoff to 30 seconds, and a maximum of ten consecutive attempts. After exhaustion, restart via the manager or reload config. The earlier claim that disconnections never reconnect is inconsistent with the version-pinned official documentation.
+
+**实施次序：** 在不更改现有 Desktop 主配置的情况下，先独立实现和单测本地 `infer` Bridge；通过代码审核与独立 stdio 握手后，使用 Desktop 的 MCP Manager 配置入口注册为**禁用**的单一 Server；随后再进行 Ollama 和模型安装、内网端点检查、工具发现、云端主动委派和成本对照。主机上不执行任何模型安装、服务重启或权限扩张，直到该阶段明确开始。  
+**Implementation order:** Build and unit-test the local `infer` bridge without changing the live Desktop configuration. After code review and a standalone stdio handshake, register one **disabled** server using the Desktop MCP Manager configuration entry. Only then proceed to installing Ollama and the selected model, checking loopback binding, tool discovery, cloud-initiated delegation, and cost comparisons. Do not install models, restart services, or broaden permissions on the host before entering that phase.
+
+**官方源码 / Pinned official sources:** [MCP Manager](https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.2.2-rc.3/packages/mcp/mcp-manager/README.zh.md) · [MCP Client](https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.2.2-rc.3/packages/mcp/mcp-client/README.zh.md) · [Web app composition](https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.2.2-rc.3/packages/bundle/web-app/cordis.patch.yml)
+
 ## 10. 参考资料｜References
 
 - [Ollama macOS requirements and installation](https://github.com/ollama/ollama/blob/main/docs/macos.mdx)
