@@ -153,15 +153,18 @@ Also measure context capacity, time to first token, generation speed, concurrenc
 
 ## 8. 本地推理工具契约｜Local Inference Tool Contract
 
-首个集成接口建议采用单一工具 local_model_infer。它只负责把有界任务交给本地模型并返回结果，不承担文件操作、Shell 执行、联网搜索或审批。具体协议格式须在确认 Harness 插件/MCP 接入方式后固定。  
-The first integration should expose one tool named local_model_infer. It only delegates a bounded task to the local model and returns the result; it does not perform file operations, shell execution, web search, or approvals. The exact protocol must be fixed after the Harness plugin/MCP integration path is confirmed.
+首个集成接口建议采用单一操作 local_model_infer。它只负责把有界任务交给本地模型并返回结果，不承担文件写入、Shell 执行、联网搜索或审批。为真正减少云端输入 Token，大批量本地资料应通过 source_refs 交给本地桥接，由桥接在只读目录白名单内读取；不要先把全文发送给云端，再重复转交本地。小型 inline_input 任务仍可使用，但不能记作已节省此前发生的云端输入 Token。具体协议格式须在确认 Harness MCP 接入方式后固定。  
+The first integration should expose one operation named local_model_infer. It delegates a bounded task to the local model and returns the result; it does not perform file writes, shell execution, web search, or approvals. To actually reduce cloud input tokens, bulk local material should be passed through source_refs and read by the local bridge from a read-only allowlist; do not send the full text to the cloud first and then forward it again locally. Small inline_input tasks remain useful but must not be counted as saving cloud input tokens already consumed. The exact protocol must be fixed after confirming the Harness MCP integration path.
+
+**MCP 工具命名 / MCP tool naming:** DeepSeek Harness 将工具名按 `mcp__<serverName>__<rawName>` 暴露给模型。若 `serverName` 为 `local_model` 且原始工具名为 `infer`，模型看到的名称为 `mcp__local_model__infer`；`local_model_infer` 是本设计中的概念操作名称。  
+DeepSeek Harness exposes MCP tools as `mcp__<serverName>__<rawName>`. With `serverName=local_model` and raw tool name `infer`, the model-facing name is `mcp__local_model__infer`; `local_model_infer` is the conceptual operation name in this design.
 
 **建议输入字段 / Proposed input fields**
 
 - task_id：唯一任务标识。 / Unique task identifier.
 - task_type：分类、提取、摘要、比较或其他已批准的任务类型。 / Classification, extraction, summarization, comparison, or another approved task type.
 - instruction：本次子任务的明确指令。 / Explicit instruction for the subtask.
-- input：完成任务所需的最小内容或经过授权的引用。 / Minimum content or authorized references needed for the task.
+- input_text / source_refs：二选一。小型任务可传最小文本；大批量本地资料应只传工作区相对引用，由本地 MCP 桥接按只读 allowlist 读取并分块送入本地模型。 / Choose one: small tasks may pass minimal inline text; bulk local material should pass workspace-relative references, which the local MCP bridge reads from a read-only allowlist and chunks for local inference.
 - output_schema：期望返回的 JSON Schema 或固定结构。 / Expected JSON Schema or fixed structure.
 - constraints：长度、范围、语言和禁止事项。 / Length, scope, language, and prohibited actions.
 - timeout_ms：本次调用的超时限制。 / Timeout limit for the call.
@@ -269,16 +272,16 @@ For LM01–LM10, record model identifier, quantization, runtime version, Harness
 
 ## 14. 尚待决策事项｜Open Decisions
 
-以下事项在完成评测和接口核实前保持开放，不在本文件中预先指定答案：  
-The following decisions remain open until evaluation and interface verification are complete; this document does not preselect their answers:
+本阶段已形成基于公开资料的研究建议，但在本机预检、安装和专项测试前均保持 RECOMMENDED / NOT_TESTED，不等同于最终部署决策。  
+This phase has produced research-based recommendations from public documentation, but all remain RECOMMENDED / NOT_TESTED until host preflight, installation, and dedicated tests are complete; they are not final deployment decisions.
 
-1. 本地推理运行时：MLX、Ollama、llama.cpp 或其他方案。 / Local inference runtime: MLX, Ollama, llama.cpp, or another option.
-2. 唯一候选模型、参数规模和量化等级。 / The single candidate model, parameter size, and quantization.
-3. DeepSeek Harness 0.2.2-rc.3 中实现本地桥接的具体机制：插件、MCP 或其他受支持接口。 / The exact local-bridge mechanism in DeepSeek Harness 0.2.2-rc.3: plugin, MCP, or another supported interface.
-4. 云端 API 对工具调用的实际支持情况，以及 Harness 是否能把工具调用结果可靠地回传同一会话。 / Actual cloud API tool-calling support and whether the Harness can reliably return tool results to the same session.
-5. 代表性任务集、当前云端费用基线和净节省门槛。 / Representative task set, current cloud-cost baseline, and net-savings threshold.
-6. 外置 SSD 的格式、挂载稳定性、备份与模型权重存储位置。 / External SSD format, mount reliability, backup, and model-weight location.
-7. 模型常驻与空闲卸载策略。 / Model residency and idle-unload policy.
+1. **运行时建议 / Runtime recommendation:** 首选 Ollama；MLX-LM 作为性能对照，llama.cpp 作为可控性后备。 / Prefer Ollama; use MLX-LM for performance comparison and llama.cpp as a control-oriented fallback.
+2. **模型建议 / Model recommendation:** 首选候选为 `qwen3.5:4b-q4_K_M`；`qwen3.5:9b-q4_K_M` 仅作为资源余量允许时的后续对照。 / First candidate is `qwen3.5:4b-q4_K_M`; test `qwen3.5:9b-q4_K_M` later only if resource headroom allows.
+3. **Harness 桥接建议 / Harness bridge recommendation:** DeepSeek Harness 0.2.2-rc.3 的 MCP Client 已在该版本标签文档中确认支持 stdio 和 streamable-http；首选 stdio 本地进程。 / The MCP Client in the 0.2.2-rc.3 tag is documented to support stdio and streamable-http; prefer a local stdio process.
+4. **云端链路 / Cloud path:** 仍需在当前账户、模型和会话中实测云端模型发起工具调用并接收同一会话的结果。 / Still test cloud tool invocation and same-session result receipt in the actual account, model, and session.
+5. **成本与质量 / Cost and quality:** 建立代表性任务集、云端费用基线和净节省门槛；大批量本地资料必须通过 source_refs 在本地读取，不能先把全文送入云端。 / Establish representative tasks, cloud-cost baselines, and net-savings thresholds; bulk local sources must be read locally through source_refs rather than sent to the cloud first.
+6. **存储 / Storage:** 外置 SSD 格式、挂载稳定性和备份未核实；首个约 3.3 GB 模型可先留在内部盘默认模型目录。 / External SSD format, mount reliability, and backup remain unverified; the first ~3.3 GB model can remain in the default internal model directory.
+7. **驻留策略 / Residency:** Ollama `keep_alive` 默认 5 分钟；需结合实际调用频率和内存压力决定是否缩短或卸载。 / Ollama's default `keep_alive` is five minutes; adjust only after measuring call frequency and memory pressure.
 
 ## 15. 架构决策摘要｜Architecture Decision Summary
 

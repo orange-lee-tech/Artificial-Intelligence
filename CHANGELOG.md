@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 ### Added
+- 本地模型运行时与模型选型记录：推荐 Ollama + Qwen3.5-4B Q4_K_M，采用 DeepSeek Harness 本地 stdio MCP 桥接；明确 source_refs 本地读取才可避免大段云端输入 Token，并记录尚未安装/实测的边界。 / Added the local model runtime and selection record: recommends Ollama + Qwen3.5-4B Q4_K_M through a local stdio MCP bridge, clarifies that source_refs local reads are required to avoid bulk cloud input tokens, and records the not-installed/not-tested boundary.
 - PACS 执行能力与模型职责路由设计：定义云端模型通过本地 Harness 桥接委派本地推理、C01–C12 与 W01–W05 职责矩阵、权限边界、成本核算及验收门槛。该设计尚未部署或实测。 / Added the PACS execution-capability and model-routing design, including cloud-initiated local inference through the local Harness bridge, C01–C12 and W01–W05 responsibility matrices, permission boundaries, cost accounting, and acceptance gates. Design only; not deployed or tested.
 
 ## [0.1.1] - 2026-11-14

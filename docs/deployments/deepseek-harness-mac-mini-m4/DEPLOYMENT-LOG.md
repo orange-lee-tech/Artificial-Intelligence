@@ -123,6 +123,30 @@ Harness remains a developer-preview system. Production suitability and recovery 
 安装前需退出 Desktop、校验随附 CLI 的版本并制作私有配置备份；安装过程任一失败即停止，不使用强制兼容豁免。完整候选对比、安装顺序与验收标准见 [插件评估](PLUGIN-REVIEW-2026-11-14.md)。  
 Before installation, quit Desktop, verify the bundled CLI version, and create a private backup. Stop on error without compatibility bypass. Details are in [plugin review](PLUGIN-REVIEW-2026-11-14.md).
 
+### 2026-11-15：本地模型运行时与模型选型研究｜Local Model Runtime and Model Selection Research
+
+**状态｜Status: RECOMMENDED / NOT INSTALLED / NOT TESTED.** 本阶段根据官方公开文档和模型卡完成技术选型研究。首选建议为 Ollama + `qwen3.5:4b-q4_K_M`，Harness 通过本地 stdio MCP Server 调用本机 Ollama API；云端 DeepSeek API 继续作为主模型。  
+**Status: RECOMMENDED / NOT INSTALLED / NOT TESTED.** This phase completed runtime/model research using official public documentation and model cards. The recommended first stack is Ollama + `qwen3.5:4b-q4_K_M`, called through a local stdio MCP server; the DeepSeek cloud API remains the primary model.
+
+**关键核验｜Key verification:**
+
+- DeepSeek Harness `dsh-v0.2.2-rc.3` 标签文档确认 MCP Client 支持 stdio 和 streamable-http；本地 stdio 进程可由 Harness 启动，并注册为模型可调用工具。 / The `dsh-v0.2.2-rc.3` tag documents MCP Client support for stdio and streamable-http; a local stdio process can be started by Harness and registered as a model-callable tool.
+- Ollama 官方 macOS 文档支持 Apple M 系列 CPU/GPU；API 文档支持 JSON Schema 结构化输出、工具调用和 `keep_alive` 驻留控制。 / Ollama's official macOS docs support Apple M-series CPU/GPU; its API docs support JSON-Schema structured output, tool calling, and `keep_alive` residency control.
+- Ollama Registry 当前列出 `qwen3.5:4b-q4_K_M` 约 3.3 GB；该值为模型文件大小，不是峰值运行内存。 / The current Ollama Registry lists `qwen3.5:4b-q4_K_M` at approximately 3.3 GB; this is file size, not peak runtime memory.
+- Qwen 官方模型卡报告 Qwen3.5-4B 的 C-Eval 85.1、IFEval 89.8；这些是发布方基准，尚非本机实测。 / Qwen's official card reports C-Eval 85.1 and IFEval 89.8 for Qwen3.5-4B; these are publisher benchmarks, not host test results.
+
+**重要成本发现｜Important cost finding:** 如果完整原文已经进入云端上下文，再转交本地模型不会减少已经发生的云端输入 Token。为实现真实节省，大批量本地资料必须通过 source_refs 交给本地 MCP Server，由它在只读路径白名单内读取并分块处理；云端只接收精简结果。  
+If full source text has already entered the cloud context, forwarding it locally does not reduce the cloud input tokens already consumed. To achieve real savings, bulk local material must be passed as source_refs to the local MCP server, which reads and chunks it within a read-only path allowlist; the cloud receives only compact results.
+
+**资源判断｜Resource assessment:** 16 GiB 主机首轮只测试 4B Q4_K_M，不直接部署 9B。首轮输入上限建议 8K–16K，实际上下文、KV Cache、内存压力、延迟和模型质量须在本机测量。模型先留在内部盘默认位置；外置 SSD 未核实前不迁移。  
+On the 16 GiB host, test only the 4B Q4_K_M model first, not 9B. Start with an 8K–16K input cap; measure actual context, KV cache, memory pressure, latency, and quality on the host. Keep the model in the default internal location until the external SSD is verified.
+
+**未执行｜Not executed:** 本次未访问 Mac mini 终端，未安装 Ollama、未下载模型、未修改 Harness 配置、未创建 MCP Server，也未执行本机性能或质量测试。  
+No Mac mini terminal was accessed; Ollama was not installed, no model was downloaded, Harness configuration was not changed, no MCP server was created, and no local performance or quality tests were run.
+
+详细研究、比较、来源及后续验收顺序见 [本地模型选型记录](LOCAL-MODEL-SELECTION-2026-11-15.md)。  
+See [Local Model Selection Record](LOCAL-MODEL-SELECTION-2026-11-15.md) for detailed research, comparisons, sources, and acceptance steps.
+
 ## 参考资料｜References
 
 - [DeepSeek Harness official repository](https://github.com/deepseek-ai/deepseek-harness)
