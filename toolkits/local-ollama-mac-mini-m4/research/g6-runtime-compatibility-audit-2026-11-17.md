@@ -964,12 +964,103 @@ In the inspected streamlx source, GPU keepalive is enabled by default. The pool 
 
 **Decision:** the 122B-A10B is not worth choosing as the first daily-use model under the current evidence. This is a deployment-priority decision, not a claim that the architecture cannot run on Apple Silicon. No checkpoint was downloaded, no runtime installed or executed, and no production configuration changed.
 
+## 7I. G6.2 — Dense 8B–9B multimodal checkpoint audit (2026-11-18)
+
+Scope: read-only audit of the first two candidates from the model-screening plan. No weights downloaded, no runtime installed or executed, no Mac mini configuration changed, and no Ollama/DSH production configuration changed.
+
+### Candidate A — Qwen3.5-9B-4bit (preferred source-level candidate)
+
+**Pinned repository:** `mlx-community/Qwen3.5-9B-4bit`  
+**Pinned revision:** `8b2b98c00a6b4d291155e4890773ca8f769aee53`  
+**Base model:** `Qwen/Qwen3.5-9B`  
+**License:** Apache-2.0  
+**Artifact:** MLX Safetensors, 2 shards; repository tree reports 5.98 GB.  
+**Index:** `metadata.total_size=5,950,062,560` bytes; weight map names the two-shard set `model-00001-of-00002.safetensors` and `model-00002-of-00002.safetensors`. The public tree and index size are mutually consistent at the displayed level.
+
+Config findings:
+- `architectures=Qwen3_5ForConditionalGeneration`, `model_type=qwen3_5`; this is the **dense** Qwen3.5 architecture, not `qwen3_5_moe`.
+- 9B parameters; 32 text layers; hidden size 4096; intermediate size 12288.
+- Hybrid attention: `full_attention_interval=4`; 8 full-attention layers and 24 linear-attention layers by config-derived count.
+- Full-attention KV: 4 KV heads × head dimension 256.
+- Linear state config: 16 key heads, 32 value heads, key/value head dimension 128, convolution kernel dimension 4; `mamba_ssm_dtype=float32`.
+- Vision config: 27 layers, hidden size 1152, intermediate size 4304, 16 heads, patch size 16, spatial merge 2. Processor metadata identifies Qwen3-VL image and video processors.
+- Quantization: affine 4-bit, group size 64.
+
+Runtime evidence:
+- The exact model card documents `mlx_vlm.load()` / `mlx_vlm.generate()` and a real image-input example; it says the checkpoint was converted from Qwen3.5-9B using mlx-vlm 0.3.12.
+- The inspected mlx-vlm source tree contains the `qwen3_5` package and distinguishes dense `qwen3_5` from `qwen3_5_moe`.
+- This is source-level/runtime-family evidence only; no PACS execution has been performed. The full Safetensors key/header list was not exhaustively parsed by this web inspection, so exact per-tensor vision-key accounting remains open.
+
+Derived memory envelope (not measured):
+- Packed checkpoint/index size: 5,950,062,560 bytes ≈ 5.54 GiB.
+- KV estimate assumes 8 full-attention layers × 4 KV heads × 256 dimensions × K/V × 2 bytes: 32 KiB/token; 4K ≈ 128 MiB, 8K ≈ 256 MiB.
+- Linear recurrent state shape estimate: 24 × 32 × 128 × 128 × FP32 ≈ 48 MiB, plus small convolution state and runtime metadata.
+- Known model weights + estimated 4K KV + linear state ≈ 5.71 GiB; at 8K ≈ 5.84 GiB.
+- Against the project's provisional 5 GiB non-model reserve, about 5.29 GiB (4K) or 5.16 GiB (8K) remains for MLX/Metal runtime, prefill/activation scratch, allocator overhead and image buffers. This makes a **single-model, 4K isolated pilot plausible**, not yet safe/accepted for DSH-concurrent daily service. Image resolution and image count must be bounded; no claim is made about measured peak memory.
+
+**Disposition:** PASS for source-level candidate screening; eligible to be the first isolated pilot *after* a separate explicit test authorization. Not yet a 16 GiB deployment pass.
+
+### Candidate B — Ministral 3 8B (architecture supported; current MLX checkpoint packaging blocked)
+
+**4-bit repository:** `mlx-community/Ministral-3-8B-Instruct-2512-4bit`  
+**Current inspected revision:** `182f003f01daa75f9de0f2c4d379722fd0bc1c61`  
+**Visible tree:** two shards named `model-00001-of-00002.safetensors` and `model-00002-of-00002.safetensors`; total displayed repository model size 5.63 GB.  
+**Config:** `Mistral3ForConditionalGeneration`, `model_type=mistral3`; affine 4-bit, group size 64; 34 text layers, hidden size 4096, intermediate size 14336, 32 attention heads, 8 KV heads, head dimension 128. Vision config: Pixtral, 24 layers, hidden size 1024, 16 heads, patch size 14, image edge 1540. Dense architecture; no MoE expert router/cache.
+
+**Blocking artifact inconsistency:**
+- The current visible Safetensors index reports `total_parameters=8,918,026,716` and `total_size=10,420,523,960` bytes.
+- Its weight map references the three-shard naming scheme `model-00001-of-00003`, `model-00002-of-00003`, and `model-00003-of-00003`.
+- The current repository tree instead lists only two files using the `of-00002` naming scheme.
+- The latest 4-bit commit deleted an old standalone `model.safetensors` file, but the visible index metadata/weight-map still reflects the older layout. The same stale three-shard/10.42GB index pattern appears in the 6-bit sibling.
+- Therefore the exact checkpoint cannot be accepted as loadable from the current repo state. This is a packaging/index inconsistency, not a proven MLX architecture limitation.
+
+**6-bit sibling cross-check:** `mlx-community/Ministral-3-8B-Instruct-2512-6bit`, revision `8eb4968e7ab0a00940ffdb55c7de35716dd62c3f`; tree shows two shards totalling 7.76 GB, while its index likewise maps three shards and reports 10.42GB. Its model card documents an mlx-vlm 0.3.9 image-generation command, which supports the *family* runtime path but does not repair the checkpoint/index mismatch.
+
+KV/memory implications if a corrected artifact is published:
+- Standard full attention, 34 layers × 8 KV heads × 128 dimensions × K/V × 2 bytes = 136 KiB/token.
+- Estimated KV: 4K ≈ 544 MiB; 8K ≈ 1.0625 GiB; 16K ≈ 2.125 GiB. Thus its context cache grows about 4.25× faster than Qwen3.5-9B's config-derived KV estimate.
+- Based only on visible tree file totals, 4-bit weights would be about 5.24 GiB and 6-bit weights about 7.23 GiB; however, because the index disagrees with the tree, these are **not accepted resident-weight totals**. If the index's 10.42GB tensor total were the true required weight set, the 4K model-side requirement would be about 10.23 GiB before runtime/scratch, leaving only ~0.77 GiB after the provisional 5 GiB non-model reserve. This ambiguity alone blocks a 16 GiB safety conclusion.
+- Vision prefill activations, tokenizer/processor allocations and runtime scratch are not included.
+
+Runtime-family evidence:
+- mlx-vlm source tree contains a `ministral3` package.
+- The 6-bit sibling card provides an explicit `mlx_vlm.generate` image example using mlx-vlm 0.3.9.
+- The exact 4-bit checkpoint README does not provide an equivalent inference example; regardless, its index/tree mismatch is the immediate blocker.
+
+**Disposition:** FAIL current checkpoint packaging gate / HOLD. Do not download either current 4-bit or 6-bit MLX artifact. Re-audit only after the publisher supplies an index whose weight-map shard names, shard count and total_size agree with the repository tree, or after a separately authorized reproducible conversion from the official base checkpoint.
+
+### G6.2 comparison and next action
+
+| Gate | Qwen3.5-9B-4bit | Ministral 3 8B 4-bit |
+|---|---|---|
+| Dense vs MoE classification | Dense | Dense |
+| Vision config + processor | Present | Present |
+| MLX-VLM family support | Present | Present |
+| Exact pinned repo revision | Identified | Identified |
+| Tree/index shard consistency | PASS at displayed level | FAIL / mismatch |
+| 4-bit quant metadata | affine / group64 | affine / group64 |
+| 4K KV estimate | ~128 MiB + ~48 MiB linear state | ~544 MiB |
+| Static 16 GiB pilot plausibility | Plausible, conditional | Cannot conclude until artifact repaired |
+| Hardware test | Not run | Not run |
+
+**Selection update:** prioritize Qwen3.5-9B-4bit as the next candidate for an isolated, single-model 4K pilot after explicit authorization. Keep Ministral 3 8B on hold pending corrected artifacts. This does not replace or unload the existing Qwen3.5-4B baseline. Keep single-model concurrency 1; do not co-reside 4B and 9B; no browser/Office/GUI-agent concurrency during first acceptance.
+
+Sources inspected:
+- Qwen MLX repo/tree and pinned commit: https://huggingface.co/mlx-community/Qwen3.5-9B-4bit/tree/8b2b98c00a6b4d291155e4890773ca8f769aee53
+- Qwen config: https://huggingface.co/mlx-community/Qwen3.5-9B-4bit/blob/8b2b98c00a6b4d291155e4890773ca8f769aee53/config.json
+- Qwen index: https://huggingface.co/mlx-community/Qwen3.5-9B-4bit/blob/8b2b98c00a6b4d291155e4890773ca8f769aee53/model.safetensors.index.json
+- Ministral 4-bit current tree: https://huggingface.co/mlx-community/Ministral-3-8B-Instruct-2512-4bit/tree/182f003f01daa75f9de0f2c4d379722fd0bc1c61
+- Ministral 4-bit index: https://huggingface.co/mlx-community/Ministral-3-8B-Instruct-2512-4bit/blob/182f003f01daa75f9de0f2c4d379722fd0bc1c61/model.safetensors.index.json
+- Ministral 6-bit tree: https://huggingface.co/mlx-community/Ministral-3-8B-Instruct-2512-6bit/tree/8eb4968e7ab0a00940ffdb55c7de35716dd62c3f
+- Ministral 6-bit index: https://huggingface.co/mlx-community/Ministral-3-8B-Instruct-2512-6bit/blob/8eb4968e7ab0a00940ffdb55c7de35716dd62c3f/model.safetensors.index.json
+- MLX-VLM model registry mirror (qwen3_5 and ministral3 entries): https://upd.dev/Blaizzy/mlx-vlm/src/commit/451e3a3e9d70ed2890f78083f62e305d40f5c959/mlx_vlm/models
+
 ## 10. G6 status
 
 | Gate | Status | Evidence |
 |---|---|---|
 | G6.1 Runtime source audit | COMPLETE | Source, package metadata, architecture, cache, memory and I/O paths inspected |
-| G6.2 Exact checkpoint compatibility | PARTIAL / SOURCE-LEVEL | Kimi checkpoint revision and public config/expert-key family identified; exact pinned index byte accounting and shell tensor total remain pending |
+| G6.2 Exact checkpoint compatibility | PARTIAL / SOURCE-LEVEL | Qwen3.5-9B-4bit pinned repo/config/index and MLX-VLM path audited; candidate for isolated pilot only. Ministral 3 8B current 4/6-bit MLX repos have shard/index mismatch and are on hold. No target hardware run. |
 | G6.3 16 GiB memory envelope | PARTIAL / STATIC ONLY | Qwen 122B shell/pool/state arithmetic estimated; per-layer slot allocation, cache locality thought experiment and prefill sweep I/O envelope audited; exact index, representative route trace, measured peak and thermal data remain absent; 122B not selected for first deployment |
 | G6.4 TS900 runtime-level I/O overlap | NOT TESTED | Only generic SSD benchmark exists |
 | G6-Safety static power/thermal envelope | PARTIAL / SOURCE-BASED | Apple specifications and third-party stress review; no PACS workload measurement |
