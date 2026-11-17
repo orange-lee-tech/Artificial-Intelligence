@@ -750,8 +750,8 @@ The 5 GiB non-model reserve is a provisional floor, not a fixed measurement. The
 | Gate | Status | Evidence |
 |---|---|---|
 | G6.1 Runtime source audit | COMPLETE | Source, package metadata, architecture, cache, memory and I/O paths inspected |
-| G6.2 Exact checkpoint compatibility | NOT TESTED | No exact 48B–50B checkpoint selected or downloaded |
-| G6.3 16 GiB memory envelope | NOT TESTED | No target runtime executed on this host |
+| G6.2 Exact checkpoint compatibility | PARTIAL / SOURCE-LEVEL | Kimi checkpoint revision and public config/expert-key family identified; exact pinned index byte accounting and shell tensor total remain pending |
+| G6.3 16 GiB memory envelope | PARTIAL / DERIVED ESTIMATES | Kimi MLA cache slope and KDA state shape estimated; exact shell, cache floor, scratch and whole-host envelope remain pending; no target runtime executed |
 | G6.4 TS900 runtime-level I/O overlap | NOT TESTED | Only generic SSD benchmark exists |
 | G6-Safety static power/thermal envelope | PARTIAL / SOURCE-BASED | Apple specifications and third-party stress review; no PACS workload measurement |
 | G6-Context prompt/KDA/MLA accounting | PARTIAL / SOURCE-BASED | Kimi config and streamlx cache code inspected; no local runtime measurement |
