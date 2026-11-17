@@ -19,11 +19,16 @@ if [[ -n "$HOST_ENV" && "$HOST_ENV" != "127.0.0.1:11434" ]]; then
 fi
 if command -v lsof >/dev/null 2>&1; then
   LISTENERS="$(lsof -nP -iTCP:11434 -sTCP:LISTEN 2>/dev/null || true)"
-  if printf '%s\n' "$LISTENERS" | grep -Eq '(\*|0\.0\.0\.0|\[::\]):11434'; then
-    printf '[FAIL] Wildcard listener detected:\n%s\n' "$LISTENERS"; exit 3
+  if [[ -z "$LISTENERS" ]]; then
+    printf '[WARN] lsof did not report a listener; API answered, but bind address is unverified.\n'
+  else
+    printf '\nListener:\n%s\n' "$LISTENERS"
+    if ! printf '%s\n' "$LISTENERS" | awk '/TCP/ { addr=$9; if (addr !~ /^(127\.0\.0\.1|\[::1\]|localhost):11434$/) bad=1 } END { exit bad }'; then
+      printf '[FAIL] Listener is not restricted to loopback. Stop Ollama and correct OLLAMA_HOST.\n'
+      exit 3
+    fi
+    printf '[PASS] Listener is loopback-only.\n'
   fi
-  printf '\nListener:\n'
-  if [[ -n "$LISTENERS" ]]; then printf '%s\n' "$LISTENERS"; else printf '(not reported by lsof)\n'; fi
 else
   printf '[WARN] lsof unavailable; bind address not independently checked.\n'
 fi
