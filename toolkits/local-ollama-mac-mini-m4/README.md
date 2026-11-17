@@ -159,7 +159,7 @@ streamlx 还有一个需注意的默认行为：`STREAMLX_KEEPALIVE` 默认开�
 首选候选：`mlx-community/Kimi-Linear-48B-A3B-Instruct-4bit`，模型卡显示 49B 总参数、3B 激活参数、27.6GB MLX safetensors。配置为 `model_type=kimi_linear`，27 层（首层 dense，推导出 26 个 MoE 层），每层 256 个 routed experts、top-8、1 个 shared expert，expert intermediate 1024、hidden 2304；采用 4-bit affine group64，路由 gate projection 为 8-bit。注意力为 20 个 KDA linear-attention 层 + 7 个 MLA full-attention 层。许可证：该 MLX checkpoint 卡片标注 MIT；配置包含 `auto_map`，需留意 custom code。
 
 - MLX checkpoint：<https://huggingface.co/mlx-community/Kimi-Linear-48B-A3B-Instruct-4bit>
-- 本次检查的 checkpoint commit：`a10c7aa245785079a2b61bf9f9c2038906542856`
+- 本次检查的 checkpoint commit：`919175d75427f1c10cfc17e7254b53295edddf72`
 - streamlx README 明确将 `kimi_linear` 列为已验证模型家族，且该 checkpoint index 里可见 `model.layers.N.mlp.switch_mlp.{gate_proj,up_proj,down_proj}` 权重、scales、biases 键名，结构上与 streamlx 的 stacked `switch_mlp` 路径吻合。
 
 **重要配置键细节：** Kimi config 使用 `num_experts_per_token`，streamlx 当前 `_routed_topk()` 读取 `num_experts_per_tok`，否则默认 8。此 checkpoint 实际 top-k 恰为 8，所以默认值碰巧正确；后续加载应显式传 `k=8` 或增加配置键兼容检查。
