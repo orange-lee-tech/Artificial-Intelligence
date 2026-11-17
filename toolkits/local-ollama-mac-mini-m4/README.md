@@ -1,7 +1,7 @@
 # Mac mini M4 本地模型部署工具包
 
 **版本：** 0.1.0  
-**状态：** PREPARED — NOT EXECUTED  
+**状态：** IN PROGRESS — G0 PASS / G1 INSTALLED / G2–G9 NOT TESTED  
 **主机：** Apple Silicon M4，16 GiB 统一内存  
 **运行时：** Ollama macOS 应用  
 **首选模型候选：** qwen3.5:4b-q4_K_M  
@@ -51,12 +51,14 @@ bash scripts/mac/preflight.sh
 
 从官方 macOS 下载页安装应用：https://ollama.com/download
 
-打开应用后执行：
+官方页面同时提供 macOS 图形安装包和官方安装命令 `curl -fsSL https://ollama.com/install.sh | sh`；两者均为官方分发方式。此工具包不自动安装软件。本机本轮已通过官方命令安装，实测 `/Applications/Ollama.app`、`/usr/local/bin/ollama`、版本 `0.40.16`，且 `http://127.0.0.1:11434/api/version` 正常响应。
+
+安装并启动后执行：
 ~~~bash
 bash scripts/mac/verify-ollama.sh
 ~~~
 
-不要使用未经审查的第三方安装包；Linux 安装脚本不是本项目的 macOS 应用安装步骤。
+不要使用第三方镜像或未经审查的安装包。
 
 ### G2 — 模型目录配置（默认 dry-run）
 
