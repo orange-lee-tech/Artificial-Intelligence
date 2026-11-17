@@ -1,0 +1,10 @@
+【AI 工作站｜每日工作汇总】
+日期：{{report_date}}
+完成任务：{{completed_count}}
+失败任务：{{failed_count}}
+跳过步骤：{{skipped_count}}
+待处理：{{pending_count}}
+生成文件：{{artifact_count}}
+云端费用：{{cloud_cost}}
+预算剩余：{{remaining_budget}}
+重点事项：{{highlights}}
