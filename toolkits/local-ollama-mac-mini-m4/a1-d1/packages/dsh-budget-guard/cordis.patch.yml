@@ -1,0 +1,22 @@
+# dsh-budget-guard bundle patch.
+# The row starts in observe mode with no ledger: it records decisions but
+# never blocks. Enforcement requires a ledger path and a price table, because
+# an unknown price must fail closed rather than guess.
+#
+# - id: budget-guard
+#   config:
+#     mode: enforce                     # observe | enforce
+#     ledgerFile: /absolute/path/budget.jsonl
+#     perRequestYuan: 0.2
+#     dailyYuan: 2.0
+#     freeProviders: [ollama]
+#     prices:
+#       deepseek-official:
+#         inputPerMTok: 2.0
+#         outputPerMTok: 8.0
+#
+- insert:
+    - id: budget-guard
+      name: dsh-budget-guard
+      config:
+        mode: observe

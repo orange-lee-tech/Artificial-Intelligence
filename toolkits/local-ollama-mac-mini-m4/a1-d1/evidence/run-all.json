@@ -1,0 +1,88 @@
+{
+  "generatedAt": "2026-11-17T05:25:15.800Z",
+  "total": 10,
+  "passed": 10,
+  "failed": 0,
+  "cases": [
+    {
+      "id": "t1",
+      "title": "Plugin load and config registration (dump-config)",
+      "verdict": "PASS",
+      "exitCode": 0,
+      "ms": 159,
+      "failed": []
+    },
+    {
+      "id": "t2",
+      "title": "agent/inbox/inserted runs before the first model request",
+      "verdict": "PASS",
+      "exitCode": 0,
+      "ms": 533,
+      "failed": []
+    },
+    {
+      "id": "t3",
+      "title": "LOCAL_FIRST produces zero cloud requests",
+      "verdict": "PASS",
+      "exitCode": 0,
+      "ms": 547,
+      "failed": []
+    },
+    {
+      "id": "t4",
+      "title": "llm/stream without next() produces zero adapter egress",
+      "verdict": "PASS",
+      "exitCode": 0,
+      "ms": 61,
+      "failed": []
+    },
+    {
+      "id": "t5",
+      "title": "Local timeout retry stays on the local provider",
+      "verdict": "PASS",
+      "exitCode": 0,
+      "ms": 466,
+      "failed": []
+    },
+    {
+      "id": "t6",
+      "title": "No reservation / unknown price refuses the cloud request",
+      "verdict": "PASS",
+      "exitCode": 0,
+      "ms": 847,
+      "failed": []
+    },
+    {
+      "id": "t7",
+      "title": "Per-request and daily caps refuse the cloud request",
+      "verdict": "PASS",
+      "exitCode": 0,
+      "ms": 1244,
+      "failed": []
+    },
+    {
+      "id": "t8",
+      "title": "Concurrent reservations are atomic and cap-exact",
+      "verdict": "PASS",
+      "exitCode": 0,
+      "ms": 278,
+      "failed": []
+    },
+    {
+      "id": "t9",
+      "title": "Explicit subagent provider is still budget constrained",
+      "verdict": "PASS",
+      "exitCode": 0,
+      "ms": 66,
+      "failed": []
+    },
+    {
+      "id": "t10",
+      "title": "Crash and dispose clean up state correctly",
+      "verdict": "PASS",
+      "exitCode": 0,
+      "ms": 445,
+      "failed": []
+    }
+  ]
+}

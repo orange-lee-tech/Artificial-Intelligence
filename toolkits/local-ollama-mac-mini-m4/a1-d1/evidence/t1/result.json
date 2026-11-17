@@ -1,0 +1,73 @@
+{
+  "case": 1,
+  "title": "isolation profile loads both plugins with the intended config",
+  "verdict": "PASS",
+  "checks": [
+    {
+      "name": "dump-config exits cleanly",
+      "ok": true,
+      "detail": {
+        "status": 0,
+        "stderr": ""
+      }
+    },
+    {
+      "name": "agent default model points at the mock local provider",
+      "ok": true,
+      "detail": "- id: agent-default-model\n  name: '@deepseek-ai/dsh-agent-default-model'\n  config:\n    provider: mock-local\n    model: mock-small\n# == @deepseek-ai/dsh-base"
+    },
+    {
+      "name": "cloud row llm-deepseek is disabled",
+      "ok": true,
+      "detail": "- id: llm-deepseek\n  name: '@deepseek-ai/dsh-llm-deepseek-api-key'\n  disabled: true"
+    },
+    {
+      "name": "cloud row llm-deepseek-account is disabled",
+      "ok": true,
+      "detail": "- id: llm-deepseek-account\n  name: '@deepseek-ai/dsh-llm-deepseek-account'\n  disabled: true\n# == @deepseek-ai/dsh-headless"
+    },
+    {
+      "name": "cloud row llm-pi-ai is disabled",
+      "ok": true,
+      "detail": "- id: llm-pi-ai\n  name: '@deepseek-ai/dsh-llm-pi-ai'\n  disabled: true\n# == @deepseek-ai/dsh-base"
+    },
+    {
+      "name": "cloud row session-title-llm is disabled",
+      "ok": true,
+      "detail": "- id: session-title-llm\n  name: '@deepseek-ai/dsh-session-title-first-prompt-llm'\n  config:\n    targetWords: 5\n    targetCjkCharacters: 10\n    maxInputBytes: 4096\n    maxOutputTokens: 4096\n    timeoutMs: 60000\n  disabled: true\n# == @deepseek-ai/dsh-base"
+    },
+    {
+      "name": "plugin row mock-provider is registered",
+      "ok": true,
+      "detail": "- id: mock-provider\n  name: dsh-mock-provider\n  config:\n    providers:\n      - mock-local\n      - mock-cloud\n    logFile: evidence/e2e/mock-calls.jsonl\n    text: mock reply\n    retryPolicy:\n      mode: normal\n      maxRetries: 2\n      initialDelayMs: 10\n      maxDelayMs: 40"
+    },
+    {
+      "name": "plugin row local-first-router is registered",
+      "ok": true,
+      "detail": "- id: local-first-router\n  name: dsh-local-first-router\n  config:\n    policy: local-only\n    local:\n      provider: mock-local\n      model: mock-small\n    logFile: evidence/e2e/router.jsonl"
+    },
+    {
+      "name": "plugin row budget-guard is registered",
+      "ok": true,
+      "detail": "- id: budget-guard\n  name: dsh-budget-guard\n  config:\n    mode: enforce\n    ledgerFile: evidence/e2e/ledger.jsonl\n    logFile: evidence/e2e/guard.jsonl\n    perRequestYuan: 0.2\n    dailyYuan: 2\n    freeProviders:\n      - mock-local\n    prices:\n      mock-cloud:\n        inputPerMTok: 2\n        outputPerMTok: 8\n"
+    },
+    {
+      "name": "router config carries the local policy and local target",
+      "ok": true,
+      "detail": "- id: local-first-router\n  name: dsh-local-first-router\n  config:\n    policy: local-only\n    local:\n      provider: mock-local\n      model: mock-small\n    logFile: evidence/e2e/router.jsonl"
+    },
+    {
+      "name": "guard config is enforce with ledger and CNY caps",
+      "ok": true,
+      "detail": "- id: budget-guard\n  name: dsh-budget-guard\n  config:\n    mode: enforce\n    ledgerFile: evidence/e2e/ledger.jsonl\n    logFile: evidence/e2e/guard.jsonl\n    perRequestYuan: 0.2\n    dailyYuan: 2\n    freeProviders:\n      - mock-local\n    prices:\n      mock-cloud:\n        inputPerMTok: 2\n        outputPerMTok: 8\n"
+    },
+    {
+      "name": "mock config lists both scripted providers",
+      "ok": true,
+      "detail": "- id: mock-provider\n  name: dsh-mock-provider\n  config:\n    providers:\n      - mock-local\n      - mock-cloud\n    logFile: evidence/e2e/mock-calls.jsonl\n    text: mock reply\n    retryPolicy:\n      mode: normal\n      maxRetries: 2\n      initialDelayMs: 10\n      maxDelayMs: 40"
+    }
+  ],
+  "notes": [
+    "Runtime evidence from dsh a1d1-isolated --dump-config in <test-root>: the loader parsed all three plugin rows and disabled every cloud provider row."
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "case": "3",
+  "title": "LOCAL_FIRST performs zero cloud requests and zero network egress",
+  "verdict": "PASS",
+  "checks": [
+    {
+      "name": "every real cloud LLM plugin is disabled in the composed profile",
+      "ok": true,
+      "detail": {
+        "dumpBytes": 14624
+      }
+    },
+    {
+      "name": "no socket, DNS or fetch attempt was made by the whole process tree",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "the run answered through the mock provider",
+      "ok": true,
+      "detail": {
+        "status": 0,
+        "ms": 401,
+        "tail": "mock reply\n"
+      }
+    },
+    {
+      "name": "only the local provider was reached",
+      "ok": true,
+      "detail": [
+        "mock-local/mock-small"
+      ]
+    },
+    {
+      "name": "the cloud-like mock provider was never reached",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "classifier selects cloud for a cloud keyword prompt",
+      "ok": true,
+      "detail": {
+        "kind": "cloud",
+        "rule": "keyword:云端",
+        "matched": "云端"
+      }
+    },
+    {
+      "name": "classifier selects local for an ordinary prompt",
+      "ok": true,
+      "detail": {
+        "kind": "local",
+        "rule": "default:local"
+      }
+    }
+  ],
+  "notes": [
+    "NODE_OPTIONS=--import test/no-network.mjs blocks net/dns/tls/fetch and logs attempts",
+    "cloud adapters are structurally absent (llm-deepseek, llm-deepseek-account, llm-pi-ai, session-title-llm disabled)",
+    "mock-cloud exists as a provider but was not reached"
+  ]
+}

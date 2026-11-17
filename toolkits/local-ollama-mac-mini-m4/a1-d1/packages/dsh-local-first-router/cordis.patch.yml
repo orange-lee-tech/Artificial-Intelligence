@@ -1,0 +1,18 @@
+# dsh-local-first-router bundle patch.
+# The row is inserted dormant: without a configured `local` route the plugin
+# only logs and never touches Agent model selection. Enable routing by giving
+# the row a real provider/model pair in your profile patch, e.g.
+#
+# - id: local-first-router
+#   config:
+#     policy: local-first          # local-only | local-first
+#     local: { provider: ollama, model: 'qwen3-coder:30b' }
+#     strictSticky: true
+#
+- insert:
+    - id: local-first-router
+      name: dsh-local-first-router
+      config:
+        policy: local-only
+        local: { provider: '', model: '' }
+        strictSticky: true

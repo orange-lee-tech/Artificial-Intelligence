@@ -1,0 +1,4 @@
+# a1d1 probe: observe the agent/request-error waterfall payload without altering it
+- insert:
+    - id: a1d1-probe
+      name: dsh-a1d1-probe

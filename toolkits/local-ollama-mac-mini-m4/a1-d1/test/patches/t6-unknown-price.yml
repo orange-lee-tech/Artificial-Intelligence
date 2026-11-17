@@ -1,0 +1,10 @@
+# T6b: a paid provider with no configured price -> fail closed (BUDGET_UNKNOWN_PRICE).
+- id: budget-guard
+  config:
+    mode: enforce
+    ledgerFile: evidence/e2e/ledger.jsonl
+    logFile: evidence/e2e/guard.jsonl
+    freeProviders: []
+    perRequestYuan: 0.2
+    dailyYuan: 2.0
+    prices: {}

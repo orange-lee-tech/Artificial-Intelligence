@@ -1,0 +1,33 @@
+{
+  "name": "dsh-local-first-router",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Deterministic local-first model routing for DeepSeek Harness: decides provider/model at agent/inbox/inserted, records session+turn stickiness, and blocks cloud routes after a local decision.",
+  "type": "module",
+  "main": "./lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "engines": {
+    "dsh": "^0.2.2-rc.3"
+  },
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "local-first",
+    "routing",
+    "cordis"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "license": "MIT"
+}
