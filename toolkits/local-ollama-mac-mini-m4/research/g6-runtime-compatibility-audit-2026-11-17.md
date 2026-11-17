@@ -388,6 +388,82 @@ The model combines 20 KDA linear-attention layers and 7 MLA full-attention layer
 
 **G6.2 remains PARTIAL.** Architecture family, quantization metadata, model card size, shard count, expert key naming and streamlx family support are confirmed from public sources. Exact per-layer expert bundle byte totals, full shell byte count, checkpoint immutable revision pinning against all shard files, and 16 GiB runtime memory fit are not yet established. No checkpoint was downloaded.
 
+## 7B. Expanded model selection — 8–10B active target (2026-11-17)
+
+User direction: prioritize model capability; preserve the installed Qwen3.5-4B as a benchmark/control; focus on modern 8–10B active MoE models; do not generate another ChatGPT Project context file.
+
+### Primary candidate: Qwen3.5-122B-A10B
+
+Official model card: https://huggingface.co/Qwen/Qwen3.5-122B-A10B  
+MLX 4-bit conversion: https://huggingface.co/mlx-community/Qwen3.5-122B-A10B-4bit  
+Alternative 16GB-oriented TurboQuant build: https://huggingface.co/manjunathshiva/Qwen3.5-122B-A10B-tq3a-tqTe-g64
+
+**SOURCE_VERIFIED (official Qwen card):**
+- 122B total / 10B active parameters.
+- 48 decoder layers; 256 routed experts; 8 routed + 1 shared expert per token.
+- hidden size 3072; expert intermediate size 1024.
+- hybrid backbone: 12 groups of (3 Gated DeltaNet → MoE + 1 Gated Attention → MoE), hence 48 MoE blocks.
+- native context 262,144; extended context metadata is not a 16GB operating target.
+- Apache-2.0 upstream license.
+- official model-card scores versus Qwen3.5-35B-A3B: MMLU-Pro 86.7 vs 85.3; SuperGPQA 67.1 vs 63.4; HLE-CoT 25.3 vs 22.4; GPQA Diamond 86.6 vs 84.2; Terminal-Bench 2 49.4 vs 40.5; BFCL-V4 72.2 vs 67.3; SWE-bench Verified 72.0 vs 69.2. These are publisher-reported results and should guide, not replace, our own task evaluation.
+
+### Model format and runtime paths must not be conflated
+
+**Path A — standard MLX 4-bit + streamlx**
+- MLX community checkpoint currently lists 69.6 GB and 14 Safetensors shards.
+- streamlx explicitly validates `qwen3_5_moe` and remaps MLX-VLM text-only exports; MLX-LM's Qwen3.5 MoE sanitizer creates the stacked `switch_mlp` expert layout streamlx expects.
+- This is a strong source-level architecture match, but the exact 122B checkpoint has not been executed through streamlx on this 16GB Mac mini. No 16GB streamlx performance or memory result is claimed.
+- Provisional 4-bit expert slot floor: 48 MoE layers × top-8 = 384 simultaneous slots. With 3 matrices/expert (3072×1024 each), 4-bit weights plus estimated group-64 FP16 scales/biases gives about 5.06 MiB/expert and approximately 1.90 GiB for the minimum 384 slots. This is shape-derived, not exact index parsing. It is a lower bound, not a recommended cache size.
+
+**Path B — TurboQuant-MLX custom low-bit format + its own streaming runtime**
+- Project documentation reports a Qwen3.5-122B-A10B `tq3a-tqTe-g64` build at 30.9 GB: 3-bit attention and ternary (about 1.58-bit) experts.
+- The runtime's published base 16GB M4 Mac mini result is about 2.1 tokens/s, 82% expert-cache hit rate, and 11.3 GB peak at an 8 GB cache budget. This is third-party author-reported hardware data, not a PACS test.
+- The same project reports about 0.6–1.1 tokens/s at a 1–4 GB cache in an earlier measurement; its latest guide lists 8 GB as the 16GB-mini operating point.
+- This is not the standard affine 4-bit MLX checkpoint and must not be assumed compatible with streamlx. It is a separate runtime/quantization path.
+- Streaming itself can be bit-identical to the corresponding quantized resident checkpoint; that does not imply the custom quantization has identical quality to the original BF16/4-bit checkpoint.
+- At ~2.1 tok/s, 1,000 generated tokens take roughly 8 minutes. This may be acceptable for deliberate long reasoning, but is not a good default interactive/agent throughput target.
+- The published 11.3 GB peak leaves limited room for macOS and DSH concurrency. The PACS baseline has not yet verified DSH + large-model co-residency. Keep one execution slot and do not run the 4B runner concurrently.
+
+### Secondary modern candidate: Mistral Small 4 (119B / 6.5B active)
+
+Official announcement: https://mistral.ai/news/mistral-small-4/  
+MLX 4-bit checkpoint: https://huggingface.co/mlx-community/Mistral-Small-4-119B-2603-4bit
+
+- Official architecture: 119B total, 6B active in MoE (about 8B including embeddings/output), 128 experts, top-4; 256K context.
+- Apache-2.0. Unifies general instruction, reasoning, coding/agentic and image input capabilities.
+- MLX 4-bit conversion is listed at 67.8 GB.
+- A community conversion note says `mistral4` requires a custom MLX implementation and recommends 64GB+ unified memory. No verified 16GB expert-streaming result was found.
+- It is a credible quality/architecture comparison candidate, but it is below the requested 8–10B active band and has no confirmed streamlx adapter. Keep as P2 research, not the first pilot.
+
+### Kimi family clarification
+
+Moonshot's public model listing contains Kimi Linear 48B-A3B (base/instruct), Kimi-VL-A3B 16B, Kimi-Dev-72B, Kimi K2 (about 1T total), and Kimi K3 (about 2.8T total). No current Moonshot-published ~70B-total / 8–10B-active Kimi Linear sibling was found.
+- Kimi-Dev-72B is based on Qwen2.5-72B and its config is dense `Qwen2ForCausalLM`; it activates the full dense model and is an older June 2025 coding-specific model, not a modern sparse MoE match.
+- Kimi K2/K3 are far above the desired active-parameter budget.
+- Thus, do not select a Kimi-branded model solely to stay within the Kimi family.
+
+### Resource and deployment interpretation
+
+- 10B active parameters are not 10 GB of memory. Resident shell, active expert slots, cache, attention/recurrent state, KV, prefill scratch, MLX/Metal allocations and OS headroom determine feasibility.
+- TS900 PACS benchmark: non-zero sequential uncached read about 834.7 MiB/s. Runtime per-token expert bytes and cache-hit rate, not the generic SSD benchmark, will determine decode throughput.
+- The TurboQuant 2.1 tok/s / 11.3 GB report is useful as an external reference point, not a guaranteed PACS result. Re-run with the actual TS900 and macOS 26.2.
+- The standard 4-bit MLX checkpoint's 69.6 GB disk size is within the external SSD capacity, but disk capacity does not establish runtime memory fit.
+
+### Existing 4B baseline and F117 node
+
+- Keep `qwen3.5:4b` installed as the current local baseline, control and recovery model. There is no technical reason to replace it with a separate 3B model. For large-model trials, unload/stop its runner; do not delete its model files.
+- Uploaded F117 hardware record: Intel i7-7700HQ (4C/8T), 32GB DDR4-2400, NVIDIA GTX 1050 Ti 4GB, Intel HD 630, TS900 1TB. This is a separate, older Windows/NVIDIA node, not extra unified memory for the Mac. Direct Ethernet can improve RPC transport but cannot pool the two machines' RAM or GPU memory. MLX/Metal runtimes cannot be assumed portable to this host.
+
+### Updated selection decision
+
+1. **P0 primary research target:** Qwen3.5-122B-A10B (10B active), because it best matches the requested model capability/active-parameter target and has a modern hybrid MoE architecture.
+2. **P0 runtime path comparison:** standard MLX 4-bit + streamlx versus TurboQuant-MLX `tq3a-tqTe-g64`. Keep these as separate paths; do not mix quantization/runtime assumptions.
+3. **P2 alternative:** Mistral Small 4 119B-A6.5B for architecture/quality comparison only until a 16GB streaming adapter is demonstrated.
+4. **Kimi Linear 48B-A3B:** retain as an earlier 3B-active comparison model, not the only or final target.
+5. **Qwen3.5-397B-A17B:** above the current 8–10B active target; defer.
+
+**No model was downloaded. No runtime was installed. No local or production configuration was changed.**
+
 ## 8. Current recommendation
 
 1. Continue source-level and model-format work on **streamlx** as the primary performance candidate.
