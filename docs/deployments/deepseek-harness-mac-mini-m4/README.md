@@ -60,6 +60,8 @@ This project follows PACS evidence and acceptance rules. Documentation is not op
 - [PLUGIN-REVIEW-2026-11-14.md](PLUGIN-REVIEW-2026-11-14.md) — 五款候选插件评估及下载渠道核对 / Five candidate plugins and official distribution-channel review.
 - [执行能力与模型路由设计](../../05-EXECUTION-CAPABILITY-AND-MODEL-ROUTING.md) — 云端模型委派本地推理、模型职责矩阵、Mac mini 资源约束和验收标准 / Execution routing, cloud-initiated local inference, responsibility matrix, Mac mini constraints, and acceptance criteria.
 - [本地模型运行时与模型选型记录](LOCAL-MODEL-SELECTION-2026-11-15.md) — Ollama、Qwen3.5-4B、MCP stdio 桥接、内存预算与成本路径 / Runtime and model recommendation, Ollama, Qwen3.5-4B, MCP stdio bridge, memory budget, and cost-saving data path.
+- [Model Adapter 与 Adaptive Router 规格](MODEL-ADAPTER-AND-ADAPTIVE-ROUTER-SPEC.md) — 统一模型适配契约、本地优先路由、云端委派、预算和权限边界 / Adapter contract, local-first routing, cloud delegation, budget and permission boundaries.
+- [Provider 扩展点专项审计交接](PROVIDER-EXTENSION-AUDIT-HANDOFF.md) — 交给 DeepSeek Harness 的只读源码审计任务 / Read-only source-audit task for DeepSeek Harness.
 
 - [第二阶段工程规格｜Phase 2 workstation specification](PHASE2-CLOUD-WORKSTATION-SPEC.md) — 云端预算守卫、模型路由、微信通信及验收入口 / Cloud spend guard, adaptive routing, WeChat gateway, and acceptance references.
 
