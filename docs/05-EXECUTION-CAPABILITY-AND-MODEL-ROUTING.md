@@ -86,6 +86,9 @@ DeepSeek Harness（Mac mini，本地主控 / local coordinator）
 **不得混淆：** 云端主动委派可以减少特定子任务的云端工作量，但每次云端 API 会话仍可能产生费用。本地优先路由才有机会完全避免一部分常规任务的云端调用。两种模式可以共存，但不应在第一阶段同时引入复杂路由。  
 **Do not conflate the modes:** Cloud-initiated delegation can reduce cloud work for selected subtasks, but the cloud API session may still incur fees. Local-first routing can avoid cloud calls entirely for some routine tasks. Both modes may coexist, but they should not be introduced as a complex combined router in the first phase.
 
+
+**模型适配与路由补充 / Adapter and router clarification:** 详细的 Model Adapter 与 Adaptive Router 契约见 [PACS Model Adapter & Adaptive Router Specification](deployments/deepseek-harness-mac-mini-m4/MODEL-ADAPTER-AND-ADAPTIVE-ROUTER-SPEC.md)。必须区分云端发起的 MCP 本地委派与首次付费请求之前的 local-first 路由；后者需要经审计确认的 pre-provider 入口，或由 PACS 任务入口实现。MCP 工具注册本身不等于 local-first。
+
 ### 3.3 网络与连接原则｜Network and Connectivity Principles
 
 - 本地推理服务默认绑定 127.0.0.1 或等效 loopback 地址，只允许本机 Harness / 适配器访问。 / The local inference service binds to 127.0.0.1 or an equivalent loopback address by default and is accessible only to the local Harness / adapter.
