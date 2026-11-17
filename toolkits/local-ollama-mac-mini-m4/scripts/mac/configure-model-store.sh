@@ -68,10 +68,24 @@ if [[ "$REUSE_BACKUP" -eq 0 ]]; then
     printf '%s\n' "$OLD_NO_CLOUD_SAVE"
   } > "$BACKUP_FILE"
   chmod 600 "$BACKUP_FILE"
+  RESTORE_MODELS="$OLD_MODELS_SAVE"
+  RESTORE_HOST="$OLD_HOST_SAVE"
+  RESTORE_NO_CLOUD="$OLD_NO_CLOUD_SAVE"
+else
+  RESTORE_MODELS="$BACKUP_MODELS"
+  RESTORE_HOST="$BACKUP_HOST"
+  RESTORE_NO_CLOUD="$BACKUP_NO_CLOUD"
 fi
-launchctl setenv OLLAMA_MODELS "$MODEL_DIR"
-launchctl setenv OLLAMA_HOST "127.0.0.1:11434"
-launchctl setenv OLLAMA_NO_CLOUD "1"
+restore_value() {
+  local key="$1" value="$2"
+  if [[ "$value" == "$UNSET_SENTINEL" ]]; then launchctl unsetenv "$key"; else launchctl setenv "$key" "$value"; fi
+}
+if ! launchctl setenv OLLAMA_MODELS "$MODEL_DIR" || ! launchctl setenv OLLAMA_HOST "127.0.0.1:11434" || ! launchctl setenv OLLAMA_NO_CLOUD "1"; then
+  restore_value OLLAMA_MODELS "$RESTORE_MODELS" || true
+  restore_value OLLAMA_HOST "$RESTORE_HOST" || true
+  restore_value OLLAMA_NO_CLOUD "$RESTORE_NO_CLOUD" || true
+  die "launchctl update failed; previous values restored where possible. Inspect backup."
+fi
 printf '[APPLIED] Environment updated. Quit and reopen Ollama, then run verify-ollama.sh.\n'
 printf 'This launchd environment has not been proven to survive logout/reboot; rerun this script after login if the values are absent.\n'
 printf 'Backup: %s\n' "$BACKUP_FILE"
