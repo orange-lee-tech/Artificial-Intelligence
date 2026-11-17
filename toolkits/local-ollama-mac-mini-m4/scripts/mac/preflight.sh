@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
-MODEL_VOLUME="$PACS_MODEL_VOLUME"
-if [[ -z "$MODEL_VOLUME" ]]; then MODEL_VOLUME="/Volumes/SSD"; fi
-MODEL_DIR="$PACS_MODEL_DIR"
-if [[ -z "$MODEL_DIR" ]]; then MODEL_DIR="$MODEL_VOLUME/AI-Workspace/models"; fi
+MODEL_VOLUME="${PACS_MODEL_VOLUME:-/Volumes/SSD}"
+MODEL_DIR="${PACS_MODEL_DIR:-$MODEL_VOLUME/AI-Workspace/models}"
 section() { printf '\n== %s ==\n' "$1"; }
 note() { printf '[INFO] %s\n' "$1"; }
 warn() { printf '[WARN] %s\n' "$1"; }
