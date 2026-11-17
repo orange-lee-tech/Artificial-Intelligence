@@ -891,7 +891,7 @@ The shape-derived cold-miss envelope for all 384 routed experts selected by a to
 - Single model process, concurrency 1, 4K context, bounded output.
 - Text-only first; do not send screenshots or images through streamlx until the full vision tower/processor path is verified.
 - Stop/unload Ollama Qwen3.5-4B before loading the large model; do not co-reside both runners.
-- Expert pool 2.0–2.5 GiB initially; bounded prompt cache and MLX cache; prefill chunk 2048 or smaller if measured scratch requires it.
+- Expert pool 2.0–2.5 GiB initially (2.0 GiB is close to the 1.90 GiB slot floor); explicitly cap prompt cache at about 0.5–1.0 GiB and MLX freed-buffer cache at about 0.5–1.0 GiB rather than inheriting the documented 2 GiB MLX-cache default; prefill chunk 2048 or smaller if measured scratch requires it. These are proposed caps, not measured safe values.
 - Disable MTP/draft and speculative prefetch initially; keep GPU keepalive off for the first correctness/memory baseline. Measure before enabling prefetch.
 - Do not launch browser/Office/GUI-agent workloads concurrently in the first memory acceptance test.
 - Stop on rising system memory pressure, sustained swap growth, memory compression escalation, or Apple thermal state Serious/Critical. No numeric watt/temperature threshold is claimed.
