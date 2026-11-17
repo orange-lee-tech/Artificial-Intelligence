@@ -1,0 +1,7 @@
+【预算守卫｜云端调用被阻断】
+任务：{{task_name}}
+时段：{{period_name}}
+原因：{{block_reason}}
+本日已占用：{{committed_cost}}
+本日剩余额度：{{remaining_budget}}
+后续：{{next_action}}
