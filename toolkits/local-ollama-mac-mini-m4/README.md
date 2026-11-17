@@ -150,7 +150,7 @@ node scripts/mac/benchmark.mjs
 
 **下一步：** G6.2 精确 checkpoint / tensor layout / quantization 兼容性审查；G6.3 计算目标模型的 per-layer top-k 最低专家槽位和 16GiB 内存包络；G6.4 设计 TS900 runtime-level 合并读取与 I/O/Metal overlap 测试。以上均不要求先下载完整大模型。
 
-详细报告：[G6 Runtime Compatibility Audit](research/g6-runtime-compatibility-audit-2026-11-17.md)。
+streamlx 还有一个需注意的默认行为：`STREAMLX_KEEPALIVE` 默认开启，会在 I/O 等待时提交 GPU keepalive 工作；首轮正确性/内存基线应先设置 `STREAMLX_KEEPALIVE=0`，稳定后再进行开关 A/B 测试。 详细报告：[G6 Runtime Compatibility Audit](research/g6-runtime-compatibility-audit-2026-11-17.md)。
 
 ## 安全边界
 
