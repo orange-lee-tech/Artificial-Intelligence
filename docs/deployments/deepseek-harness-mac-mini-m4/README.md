@@ -61,6 +61,8 @@ This project follows PACS evidence and acceptance rules. Documentation is not op
 - [执行能力与模型路由设计](../../05-EXECUTION-CAPABILITY-AND-MODEL-ROUTING.md) — 云端模型委派本地推理、模型职责矩阵、Mac mini 资源约束和验收标准 / Execution routing, cloud-initiated local inference, responsibility matrix, Mac mini constraints, and acceptance criteria.
 - [本地模型运行时与模型选型记录](LOCAL-MODEL-SELECTION-2026-11-15.md) — Ollama、Qwen3.5-4B、MCP stdio 桥接、内存预算与成本路径 / Runtime and model recommendation, Ollama, Qwen3.5-4B, MCP stdio bridge, memory budget, and cost-saving data path.
 
+- [第二阶段工程规格｜Phase 2 workstation specification](PHASE2-CLOUD-WORKSTATION-SPEC.md) — 云端预算守卫、模型路由、微信通信及验收入口 / Cloud spend guard, adaptive routing, WeChat gateway, and acceptance references.
+
 ## 公开仓库约束｜Public Repository Boundaries
 
 本仓库为公开仓库。禁止提交 API Key、Tokens、完整的运行时配置、私人目录清单、网络暴露地址、客户数据及未经审查的原始日志。敏感状态应留在本机并通过独立备份机制保护。  
