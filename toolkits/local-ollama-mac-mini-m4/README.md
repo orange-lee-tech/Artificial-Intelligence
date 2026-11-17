@@ -1,11 +1,13 @@
 # Mac mini M4 本地模型部署工具包
 
 **版本：** 0.1.0  
-**状态：** IN PROGRESS — G0 PASS / G1 INSTALLED / G2 APPLIED / G2.1 COPY VERIFIED / G3 FAIL (SERVER CHILD USES DEFAULT PATH; CAUSE UNKNOWN) / G4–G5 NOT TESTED  
+**状态：** IN PROGRESS — G0 PASS / G1 INSTALLED / G2 APPLIED / G2.1 COPY VERIFIED / G3 FUNCTIONAL PASS / G4 IN PROGRESS / G5 NOT TESTED  
 **主机：** Apple Silicon M4，16 GiB 统一内存  
 **运行时：** Ollama macOS 应用  
-**首选模型候选：** qwen3.5:4b-q4_K_M  
+**已部署基线模型：** qwen3.5:4b（本机 API 元数据报告 NVFP4 / MLX）  
 **后续接入：** DeepSeek Harness MCP stdio bridge（本工具包不启用）
+
+**最新验收更新（2026-11-17）：** Ollama Desktop 的 Model location 已修正；服务子进程报告 `OLLAMA_MODELS=/Volumes/SSD/AI-Workspace/models`，`OLLAMA_HOST=127.0.0.1:11434`，`OLLAMA_NO_CLOUD=1`。现有 `qwen3.5:4b` 已完成实际 API 推理，`ollama ps` 报告 MLX / 100% GPU / context 4096。G3 按功能验收 PASS；`ollama show --modelfile` 的 `FROM qwen3.5:4b` 是模型名引用，不作为物理 blob 路径证据。内置模型副本仍保留。G4 正在建立性能与内存基线；当前样本生成吞吐 27.93 tokens/s，但 `load_duration=5.517s`，不能当作干净的热启动样本。系统快照报告 Swap 使用 1490.62 MB；该值是系统级数据，尚无空闲基线或 DSH 对照，不能归因于模型。详细数据见 [4B Runtime Baseline](reports/4b-runtime-baseline-2026-11-17.md)。
 
 ## 范围
 
