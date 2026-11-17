@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/orange-lee-tech/Artificial-Intelligence/blob/main/schemas/cloud-spend-policy.schema.json",
+  "title": "PACS Phase 2 Cloud Spend Policy",
+  "description": "Static configuration contract only. Runtime must additionally enforce cumulative budgets atomically, price validation, and egress coverage.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "currency",
+    "timezone",
+    "daily_cap_fen",
+    "per_request_cap_fen",
+    "periods",
+    "rollover",
+    "unknown_cost_action",
+    "cloud_routing"
+  ],
+  "properties": {
+    "version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "currency": {
+      "const": "CNY"
+    },
+    "timezone": {
+      "type": "string",
+      "minLength": 1,
+      "description": "IANA timezone verified on target host."
+    },
+    "daily_cap_fen": {
+      "const": 200
+    },
+    "per_request_cap_fen": {
+      "const": 20
+    },
+    "periods": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "start",
+          "base_cap_fen"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "enum": [
+              "night",
+              "morning",
+              "afternoon",
+              "evening"
+            ]
+          },
+          "start": {
+            "type": "string",
+            "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+          },
+          "base_cap_fen": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "rollover": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "scope",
+        "method"
+      ],
+      "properties": {
+        "enabled": {
+          "const": true
+        },
+        "scope": {
+          "const": "same_local_day_only"
+        },
+        "method": {
+          "const": "cumulative_accrual"
+        }
+      }
+    },
+    "unknown_cost_action": {
+      "const": "deny"
+    },
+    "cloud_routing": {
+      "const": "adaptive_local_first"
+    }
+  }
+}
