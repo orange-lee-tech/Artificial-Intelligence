@@ -147,7 +147,62 @@ Usage Ledger + 审计日志 + WeChat 状态/结果通知
 - 先用 30B–35B MoE 验证专家缓存、SSD I/O、内存余量和任务质量，成本和风险更低；
 - 若小型 pilot 成功，再按模型文件大小和实际吞吐逐级放大。
 
-## 9. 参考资料
+## 9. 2026-11-17 追加核验：模型保留、进程环境与 Runtime 兼容性
+
+### 9.1 当前 Ollama 父子进程环境证据
+
+用户提供的只读输出：
+
+| 进程 | PID / PPID | `OLLAMA_MODELS` |
+|---|---|---|
+| `/Applications/Ollama.app/Contents/MacOS/Ollama` | 14156 / 1 | `/Volumes/SSD/AI-Workspace/models` |
+| `.../Contents/Resources/ollama serve` | 14157 / 14156 | `/Users/liyucheng/.ollama/models` |
+
+两者均有 `OLLAMA_NO_CLOUD=1`、`OLLAMA_HOST=127.0.0.1:11434`。launchd 列表可见 `com.ollama.ollama` 与 Electron application job；两个 LaunchAgents 目录未发现 Ollama plist。
+
+**结论：** 进程环境不一致已被确认；子进程为什么拿到旧值仍是 UNKNOWN。父进程环境正确不等于服务端实际采用外置模型目录。下一步只读检查：
+- `lsof -p 14157` 中打开的模型 blob / manifest 路径；
+- Ollama server 日志及启动参数；
+- `~/.ollama/server.json`（如存在）和 Ollama.app 相关设置；
+- launchd job / login item 实际定义。
+在根因确定前，不重复迁移、不重复下载、不删除 `~/.ollama/models`。官方 Ollama macOS FAQ 说明通过 `launchctl setenv` 设置服务环境并重启应用，但本机父子进程实测仍不一致，因此需查明本地启动链，而不是继续重复官方步骤。
+
+### 9.2 保留 4B，不卸载
+
+当前 `qwen3.5:4b` 是 4B dense architecture：官方模型卡列出 FFN，而非 MoE 专家层。它仍有实际价值：
+- 轻量、短时、低复杂度任务的本地模型；
+- MoE runtime 故障或模型不兼容时的 fallback；
+- 对比 MoE 的质量、延迟、内存和任务成功率的 baseline。
+
+在 16GB 统一内存机器上，不应默认同时驻留 4B 与 35B MoE。建议模型文件保留在外置 SSD，但推理采用单一执行槽：任务批次完成后卸载当前模型，再切换到另一个 runtime。只有测得内存余量后才讨论并发。
+
+### 9.3 三层“专家唤醒/路由”必须分开
+
+1. **模型内 Token Router：** 对每个 token，在每个 MoE 层选择 top-k routed experts 和 shared expert。Qwen3.5-35B-A3B 官方模型卡列出 256 experts、8 routed + 1 shared、35B total / 3B activated。
+2. **SSD Expert Streaming Runtime：** 把专家权重保存在 SSD；router 选中后从 SSD 读取，放入有界 cache。非专家 trunk、router、attention、shared weights、当前专家和 KV cache 仍占统一内存。SSD 不等于 RAM/VRAM。
+3. **PACS Task Router：** 在任务级决定调用 4B、MoE runtime、确定性工具链或云端模型。这一层受 Budget Guard 约束。
+
+因此“稀疏激活”主要是模型架构提供的计算稀疏性；“专家从 SSD 按需读取”是推理 runtime 提供的内存管理；“什么任务用什么模型”才是我们在 A1/D1 上继续开发的任务路由。三者缺一不可。
+
+### 9.4 Runtime 与 checkpoint 兼容性门槛
+
+截至本次公开资料核验：
+- `IDAH-BITBOX/serve-mlx` 是 pre-release、本机 loopback、单用户、一次只生成一个请求的 OpenAI-compatible server。README 明确说明专家从 SSD 流式读取，但非专家 shell、当前专家和 KV cache 仍在 Unified Memory。
+- 其公开 README 列出的测试 checkpoint 包含 `mlx-community/Qwen3.6-35B-A3B-8bit`、`mlx-community/Qwen3-30B-A3B-4bit` 和 Gemma 4；不能据此直接宣称 `Qwen3.5-35B-A3B` 已通过该项目的端到端验证。
+- 另一项目 `ddalcu/mlx-serve` 的模型支持表包含 `qwen3_5_moe`，但“支持 Qwen3.5 MoE 架构”本身不等于具备 SSD expert streaming。必须分开核验 model loader 与 disk paging 两项能力。
+- 因此，首个 pilot 应优先选取明确列在 SSD streaming runtime 测试清单中的 checkpoint；若坚持 Qwen3.5-35B-A3B，则先做模型转换、张量命名/shape、router、量化格式与 expert paging 的兼容性审计，不可直接下载后再碰运气。
+
+### 9.5 16GB 资源疏导策略
+
+- 模型全量文件在外置 SSD；只将非专家运行时必需部分、当前激活专家和 KV cache 放入统一内存。
+- 初期并发固定为 1；禁止 4B 与 MoE 同时驻留。
+- 初始上下文使用保守值（建议从 4K 开始验证，再评估 8K），限制最大输出和单任务批量。
+- 专家 cache 容量先使用 runtime 自动/保守默认值，不在未测内存前拍脑袋指定 GB 数。
+- 每轮记录 macOS Memory Pressure、swap、runtime RSS/footprint、SSD I/O、cache hit/miss、TTFT、tokens/s 和任务质量。
+- 发生持续内存压力、swap 增长或系统 UI 卡顿时自动停止/卸载 MoE runtime；不要靠 swap thrashing 强行维持大模型。
+
+## 10. 参考资料
+
 
 1. Ollama FAQ — macOS launchctl environment / model storage: https://github.com/ollama/ollama/blob/main/docs/faq.mdx
 2. Qwen3.5-4B model card: https://huggingface.co/Qwen/Qwen3.5-4B
@@ -161,3 +216,7 @@ Usage Ledger + 审计日志 + WeChat 状态/结果通知
 10. llama.cpp MoE on-demand paging PoC: https://github.com/ggml-org/llama.cpp/discussions/23324
 11. Slipstream benchmarks including external USB SSD: https://github.com/Schero94/slipstream
 12. Ollama DeepSeek Harness integration docs: https://github.com/ollama/ollama/blob/main/docs/integrations/deepseek-harness.mdx
+13. Ollama macOS environment and model-store FAQ: https://github.com/ollama/ollama/blob/main/docs/faq.mdx
+14. Qwen3.5-35B-A3B official model card: https://huggingface.co/Qwen/Qwen3.5-35B-A3B
+15. Qwen3.5-4B official model card: https://huggingface.co/Qwen/Qwen3.5-4B
+16. MLX Serve supported architecture list (Qwen 3.5 MoE architecture support; not proof of SSD paging): https://github.com/ddalcu/mlx-serve/blob/main/docs/models.md
