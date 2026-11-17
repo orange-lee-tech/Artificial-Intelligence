@@ -9,7 +9,7 @@
 
 **最新验收更新（2026-11-17）：** G3 已按功能验收 PASS：Ollama 子进程使用 `/Volumes/SSD/AI-Workspace/models`，`OLLAMA_NO_CLOUD=1`，Qwen3.5-4B 已完成实际推理。内置模型副本保留。G4 已采集冷加载、真正驻留热推理及 Runner VM Map：热推理 `load_duration=0.0049s`、`eval_count=946`、`eval_duration=34.0299s`、约 `27.80 tokens/s`；Runner `Physical footprint (peak)=4.3 GiB`，其中 IOAccelerator graphics resident 3.8 GiB。热推理后系统 free 37%、Swap 1490.62 MB（未增加）。这些数据是本配置的实测基线，不能按参数量线性外推 MoE；DSH 与模型共驻留的资源安全对照尚未测试。下一步转 G5：TS900 非破坏性顺序读写测试。完整记录见 [4B Runtime Baseline](reports/4b-runtime-baseline-2026-11-17.md)。
 
-**G5 预检（2026-11-17）：** `/Volumes/SSD` 已确认挂载为外置 USB APFS SSD，标称 1TB、可用约 946GiB；`dd` 与 `iostat` 可用，`fio` 未安装；USB 路径未提供 SMART 状态。预检期间未写入或删除文件。顺序与随机读取基准尚未运行，详细预检记录见 [TS900 SSD Benchmark](reports/ts900-ssd-benchmark-2026-11-17.md)。
+**G5 预检（2026-11-17）：** `/Volumes/SSD` 已确认挂载为外置 USB APFS SSD，标称 1TB、可用约 946GiB；`dd` 与 `iostat` 可用，`fio` 未安装；USB 路径未提供 SMART 状态。预检期间未写入或删除文件。顺序与随机读取基准尚未运行，详细预检记录见 [TS900 SSD Benchmark](reports/ts900-ssd-benchmark-2026-11-17.md)。 已新增可复现脚本 [benchmark-ts900.sh](scripts/mac/benchmark-ts900.sh)：在确认 Ollama 无模型驻留后，创建独立 24GiB 临时文件，执行写入+sync、macOS `F_NOCACHE` 顺序读取、4KiB/64KiB 随机读取，并仅清理自身临时文件；不会触碰 `models` 目录。
 
 ## 范围
 
