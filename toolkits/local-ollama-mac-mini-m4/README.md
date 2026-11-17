@@ -1,7 +1,7 @@
 # Mac mini M4 本地模型部署工具包
 
 **版本：** 0.1.0  
-**状态：** IN PROGRESS — G0 PASS / G1 INSTALLED / G2 APPLIED / G2.1 COPY VERIFIED / G3 FUNCTIONAL PASS / G4 BASELINE CAPTURED (DSH CO-RESIDENCY NOT TESTED) / G5 PRECHECK PASS (FIRST RUN PROVISIONAL; NON-ZERO-DATA RERUN REQUIRED)  
+**状态：** IN PROGRESS — G0 PASS / G1 INSTALLED / G2 APPLIED / G2.1 COPY VERIFIED / G3 FUNCTIONAL PASS / G4 BASELINE CAPTURED (DSH CO-RESIDENCY NOT TESTED) / G5 NON-ZERO-DATA BASELINE CAPTURED (SINGLE RUN; SUSTAINED TEST NOT DONE)  
 **主机：** Apple Silicon M4，16 GiB 统一内存  
 **运行时：** Ollama macOS 应用  
 **已部署基线模型：** qwen3.5:4b（本机 API 元数据报告 NVFP4 / MLX）  
@@ -9,7 +9,7 @@
 
 **最新验收更新（2026-11-17）：** G3 已按功能验收 PASS：Ollama 子进程使用 `/Volumes/SSD/AI-Workspace/models`，`OLLAMA_NO_CLOUD=1`，Qwen3.5-4B 已完成实际推理。内置模型副本保留。G4 已采集冷加载、真正驻留热推理及 Runner VM Map：热推理 `load_duration=0.0049s`、`eval_count=946`、`eval_duration=34.0299s`、约 `27.80 tokens/s`；Runner `Physical footprint (peak)=4.3 GiB`，其中 IOAccelerator graphics resident 3.8 GiB。热推理后系统 free 37%、Swap 1490.62 MB（未增加）。这些数据是本配置的实测基线，不能按参数量线性外推 MoE；DSH 与模型共驻留的资源安全对照尚未测试。下一步转 G5：TS900 非破坏性顺序读写测试。完整记录见 [4B Runtime Baseline](reports/4b-runtime-baseline-2026-11-17.md)。
 
-**G5 预检及首轮测试（2026-11-17）：** `/Volumes/SSD` 已确认挂载为外置 USB APFS SSD，标称 1TB、可用约 946GiB；`dd` 与 `iostat` 可用，`fio` 未安装；USB 路径未提供 SMART 状态。首轮 24GiB 测试报告写入 909.5MiB/s、读取 833.0MiB/s、4KiB 随机 5741 IOPS、64KiB 随机 2997 IOPS，且临时文件清理成功；但首版使用 `/dev/zero`，数据模式不适合排除 APFS 零块/稀疏/压缩优化，因此全部数值标记为 provisional，不作为真实物理吞吐结论。测试脚本已修正为 `/dev/urandom` 非零高熵数据，并加入 `st_blocks` 实际分配比例检查及随机源吞吐检查；需要重新运行后才能验收 G5。详细记录见 [TS900 SSD Benchmark](reports/ts900-ssd-benchmark-2026-11-17.md)，脚本见 [benchmark-ts900.sh](scripts/mac/benchmark-ts900.sh)。
+**G5 TS900 基准（2026-11-17）：** 外置 USB/APFS SSD 完成 24GiB 非零高熵数据复测：随机源上限 633.4MiB/s；顺序写入+sync 408.9MiB/s；`F_NOCACHE` 顺序读取 834.7MiB/s；4KiB 随机读取 5492.1 IOPS（P95 0.288ms）；64KiB 随机读取 2983.6 IOPS（P95 0.451ms）；`st_blocks` 分配比例 1.0003；测试文件已自动清理，可用空间恢复 946GiB。首轮 `/dev/zero` 结果仅保留为历史 provisional 数据，不作为基线。当前 G5 状态为单轮有效基线已采集；重复/持续负载、温度和 SMART 健康状态尚未验证。该数据足以进入 G6 的 SSD Expert Streaming Runtime 只读兼容性审计，不足以单独证明 MoE 端到端性能。详见 [TS900 SSD Benchmark](reports/ts900-ssd-benchmark-2026-11-17.md) 与 [benchmark-ts900.sh](scripts/mac/benchmark-ts900.sh)。
 
 ## 范围
 
