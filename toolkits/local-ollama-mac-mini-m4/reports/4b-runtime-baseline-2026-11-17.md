@@ -161,11 +161,40 @@ The prior unloaded-model snapshot had 66% system-wide free and 203,062 compresso
 
 **Interpretation:** a 4B MLX model on this host is associated with approximately 4.3 GiB peak runner physical footprint in this specific configuration. This is a useful measured reference point for the 16 GiB unified-memory budget. It does not establish that a 48B–50B MoE will fit: MoE expert residency, non-expert weights, runtime buffers, KV cache, routing, SSD streaming/cache policy, and DSH co-residency must be measured or audited separately.
 
-## 10. Remaining G4 measurements
 
-1. Run one more generation request immediately while `ollama ps` confirms the model is still resident, with `keep_alive: "10m"`; record whether `load_duration` falls to approximately zero and measure true warm-resident throughput.
-2. Capture a second `vmmap -summary` after that request if the runner PID is unchanged; note current footprint versus peak footprint.
-3. Record a controlled DSH-on / model-unloaded baseline and compare with DSH-on / model-resident. Do not modify DSH production configuration.
-4. Once warm-resident throughput and DSH co-residency are recorded, close G4 and proceed to the TS900 I/O benchmark and 48B–50B MoE runtime compatibility audit.
+## 11. True warm-resident inference sample
+
+User confirmed model residency immediately before the request:
+- `ollama ps`: `qwen3.5:4b` present, MLX runner, 100% GPU placement, context 4096, approximately 6 minutes remaining.
+
+Warm inference result:
+
+| Metric | Result |
+|---|---:|
+| Response | `WARM TEST PASSED` |
+| `load_duration` | 0.0049 s |
+| `prompt_eval_count` | 19 |
+| `prompt_eval_duration` | 0.3365 s |
+| `eval_count` | 946 |
+| `eval_duration` | 34.0299 s |
+| `total_duration` | 34.3854 s |
+| Derived generation throughput | 27.80 tokens/s |
+
+This is a valid warm-resident sample: the model was confirmed resident before the request and the reported load duration was approximately 4.9 ms. The 946 generated tokens may include internal thinking tokens for this reasoning model; therefore 27.80 tokens/s is runtime token throughput, not necessarily user-visible response throughput.
+
+System snapshot after warm inference:
+- system-wide free percentage: 37%;
+- pages free: 5,316;
+- pages wired down: 377,269 (~5.76 GiB at 16 KiB/page);
+- pages used by compressor: 251,598 (~3.84 GiB at 16 KiB/page);
+- `vm.swapusage`: 1490.62 MB used / 2048.00 MB total, unchanged.
+
+Compared with the preceding resident snapshot (free 38%, wired 366,346 pages, compressor 259,264 pages), the change is small: free percentage -1 point, wired +10,923 pages (~171 MiB), compressor -7,666 pages (~120 MiB). These are system-wide snapshots and the differences cannot be attributed solely to the inference request. No swap growth was observed.
+
+**G4 disposition:** the 4B cold-load samples, one true warm-resident sample, and one resident VM Map footprint have now been captured. The measured warm throughput is 27.80 tokens/s and the runner peak physical footprint in the captured run was 4.3 GiB. This is a useful 4B baseline, not a proof of 48B–50B MoE feasibility. DSH co-residency remains a separate, not-yet-tested resource-safety check and must be assessed without modifying DSH production configuration.
+
+## 12. Next work
+
+Proceed to G5: non-destructive TS900 external SSD sequential I/O benchmark. First inspect mount identity, filesystem, free space, and available benchmark tools. Use a dedicated temporary test file under the SSD workspace; do not overwrite model blobs or project files. Benchmark read/write only after confirming sufficient free space, then remove only the test file created by that benchmark. Separately schedule a read-only DSH-on / model-unloaded versus DSH-on / model-resident memory comparison before approving concurrent use.
 
 No model files were deleted, no large model was downloaded, and no production configuration was changed.
