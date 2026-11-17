@@ -6,7 +6,7 @@
 **适用范围 / Scope:** DeepSeek Harness on Mac mini, PACS capabilities and adapters
 
 > 这是可公开的工程规格，不是主机运行时报告；不得在此提交凭据、微信发送者 ID、真实个人数据或未脱敏的本地日志。  
-> This is a public engineering specification, not a host runtime report. Never commit credentials, WeChat sender identifiers, real personal data, or unredacted local logs here.
+> This is a public engineering specification, not a host runtime report. Never commit credentials, WeChat sender identifiers, real personal data, or unredacted local logs.
 
 ## 1. 现有 PACS 的边界 / PACS integration boundaries
 
@@ -36,12 +36,12 @@ The base caps sum to ¥2.50; this **does not authorize ¥2.50/day**. The ¥2.00 
 
 推荐确定性算法（每个本地自然日）/ Recommended deterministic allowance (per local calendar day):
 
-```text
+\`\`\`text
 accrued_cap_fen = sum(base_cap_fen for periods started by request admission time)
 committed_fen = settled_billable_fen + active_reservations_fen
 available_fen = max(0, min(200, accrued_cap_fen) - committed_fen)
 admit only if conservatively bounded_request_cost_fen <= min(20, available_fen)
-```
+\`\`\`
 
 累计授信自动实现未用时段额度向后结转，但禁止借用未来时段额度。保留每次请求所属日期的预留记录，即使请求跨越午夜，也不得因重置而消失。  
 Cumulative accrual implements forward rollover without borrowing future-period funds. Preserve the reservation's originating accounting day, including for requests crossing midnight.
@@ -57,14 +57,14 @@ Provider invoices may differ from internal reservations. A hard guarantee requir
 
 ## 3. 审计前置条件 / Audit prerequisites
 
-已报告的静态默认路由为 `deepseek-official / deepseek-flash / low`，不默认等同于 `deepseek-chat`。  
-The reported static default route is `deepseek-official / deepseek-flash / low`; do not equate it with `deepseek-chat`.
+已报告的静态默认路由为 \`deepseek-official / deepseek-flash / low\`，不默认等同于 \`deepseek-chat\`。  
+The reported static default route is \`deepseek-official / deepseek-flash / low\`; do not equate it with \`deepseek-chat\`.
 
-要求先复核 `@electron/asar` 可靠提取结果、实际 provider 出口、Web search 独立调用、subagents、MCP 工具出网、credentials refs 解析和 Desktop/headless profile 差异。未经验证的入口不能标记已拦截。  
-First verify reliable `@electron/asar` extraction, provider egress, independent web search egress, subagents, MCP tool traffic, credential refs, and Desktop/headless profile differences. Unverified exits are not guarded exits.
+要求先复核 \`@electron/asar\` 可靠提取结果、实际 provider 出口、Web search 独立调用、subagents、MCP 工具出网、credentials refs 解析和 Desktop/headless profile 差异。未经验证的入口不能标记已拦截。  
+First verify reliable \`@electron/asar\` extraction, provider egress, independent web search egress, subagents, MCP tool traffic, credential refs, and Desktop/headless profile differences. Unverified exits are not guarded exits.
 
-生产配置、`app.asar` 与现有受保护 patch 在本阶段不得无授权修改；不重启主模型，不假设本地推理服务已安装。  
-Do not edit production configuration, `app.asar`, or protected patches without authorization. Do not restart the primary model or assume local inference is installed.
+生产配置、\`app.asar\` 与现有受保护 patch 在本阶段不得无授权修改；不重启主模型，不假设本地推理服务已安装。  
+Do not edit production configuration, \`app.asar\`, or protected patches without authorization. Do not restart the primary model or assume local inference is installed.
 
 ## 4. 微信通信网关 / WeChat communication gateway
 
@@ -77,7 +77,7 @@ Do not edit production configuration, `app.asar`, or protected patches without a
 所有模型和任务只调用同一个消息接口，实际微信凭据仅由受控连接服务持有。白名单身份认证、命令白名单、速率限制、去重和持久化重试必须在网关实现。  
 All models and tasks use one message interface; only the controlled connector holds WeChat credentials. The gateway enforces sender allowlists, allowed commands, rate limits, deduplication, and durable retry.
 
-简单命令 `/status`, `/tasks`, `/budget`, `/summary`, `/help` 使用确定性查询及模板，不应为了状态汇报消耗模型 Token。  
+简单命令 \`/status\`, \`/tasks\`, \`/budget\`, \`/summary\`, \`/help\` 使用确定性查询及模板，不应为了状态汇报消耗模型 Token。  
 Simple commands use deterministic database reads and templates, rather than consuming inference tokens to report status.
 
 ## 5. 本地任务与审批 / Local tasks and approvals
@@ -88,13 +88,33 @@ Persist objectives, dependencies, current step, files, retry counts, blockers, a
 SKIP 表示跳过需额外审批的可选步骤、继续独立步骤；不能借此执行付款、对外发送、重要删除或安全设置修改。  
 SKIP means bypass optional approval-dependent steps and continue independent work; it never authorizes payment, external communication, important deletion, or security-setting changes.
 
-## 6. 实施顺序与验收 / Implementation order and acceptance
+## 6. Model Adapter 与 Adaptive Router / 模型适配层与自适应路由
 
-1. 复核实际出网和权限路径，保留 `PASS / PARTIAL / NOT_TESTED / BLOCKED` 证据。 / Verify actual egress and permissions with evidence.
+详细规格见 [Model Adapter & Adaptive Router](MODEL-ADAPTER-AND-ADAPTIVE-ROUTER-SPEC.md)；针对现有 DSH Provider 和云端前路由入口的专项审计任务见 [Provider Extension Audit Handoff](PROVIDER-EXTENSION-AUDIT-HANDOFF.md)。  
+See the [Model Adapter & Adaptive Router specification](MODEL-ADAPTER-AND-ADAPTIVE-ROUTER-SPEC.md) and the [targeted Provider Extension Audit Handoff](PROVIDER-EXTENSION-AUDIT-HANDOFF.md).
+
+本阶段采用**一个确定性路由策略、多个模型适配器**。保留现有 DeepSeek Provider；本地首个适配器优先通过受限 MCP stdio Bridge 调用 Ollama。只有源码审计证明 DSH 存在稳定、安全且不需修改 app.asar 的 Provider 扩展点，才考虑原生 Provider Adapter。  
+Use **one deterministic routing policy and multiple model adapters**. Preserve the existing DeepSeek provider; the first local adapter uses a restricted MCP stdio bridge to Ollama. Consider a native DSH provider adapter only if source audit proves a stable, safe extension point that does not require editing app.asar.
+
+必须区分两种模式：
+
+1. **Local-first：** 在首次付费云端请求前，由任务入口根据已验收能力和策略选择本地模型。若 DSH 没有安全的 pre-provider hook，则在 PACS 任务入口/调度层实现，不得把云端发起的 MCP 调用冒充为 local-first。
+2. **Cloud-initiated delegation：** 云端会话发起 MCP 本地推理调用。它可减少特定子任务的云端处理量，但初始云端请求已经发生，不能宣称避免了该请求的费用。
+
+本地模型故障、超时或输出不合规时，禁止静默回退云端。任何云端回退必须显式允许，并先通过同一 Budget Guard 预留；未知费用或未覆盖的出口一律 fail closed。模型不得批准自己的路由、预算、权限或审批。
+
+The router must distinguish local-first dispatch before any paid request from cloud-initiated MCP delegation. Local failure never silently falls back to cloud; any explicitly permitted cloud fallback must first pass the shared Budget Guard. A model cannot approve its own route, budget, permissions, or approvals.
+
+## 7. 实施顺序与验收 / Implementation order and acceptance
+
+1. 复核实际出网和权限路径，保留 \`PASS / PARTIAL / NOT_TESTED / BLOCKED\` 证据。 / Verify actual egress and permissions with evidence.
 2. 用模拟请求实现并测试 spend guard、事务预留和账本；优先零收费测试。 / Implement and test guard, transactional reservations, and ledger with mock requests.
-3. 审计并集成本地路由及可恢复任务队列。 / Audit and integrate local routing and recoverable tasks.
-4. 审计现有微信机器人，复用真实连接；验证发送者和附件能力。 / Audit the existing WeChat connector; verify sender identity and attachment support.
-5. 接入模板，完成端到端验收后再部署。 / Integrate templates and deploy only after end-to-end acceptance.
+3. 完成 [Provider Extension Audit](PROVIDER-EXTENSION-AUDIT-HANDOFF.md)，确认 Provider 注册、流式契约、重试/重放、usage meter、pre-cloud hook 与 Desktop/headless 差异；不得先假设扩展点存在。 / Audit provider registration, streaming, retries/replay, usage meter, pre-cloud hook, and profile differences.
+4. 固定 Model Adapter 契约；在隔离目录用 mock 测试本地 MCP stdio Bridge，不接生产配置。 / Freeze the adapter contract and test the local MCP stdio bridge with mocks in isolation.
+5. 审计并实现唯一 Adaptive Router；local-first 必须在首次云端请求之前发生；云端主动委派作为独立模式。 / Audit and implement one Adaptive Router; local-first must happen before the first cloud request.
+6. 接入可恢复任务队列；验证超时、取消、重启恢复和无静默云端回退。 / Integrate a recoverable task queue and test timeout, cancellation, restart recovery, and no silent cloud fallback.
+7. 审计现有微信机器人，复用真实连接；验证发送者和附件能力。 / Audit the existing WeChat connector and verify sender identity and attachments.
+8. 接入模板，完成端到端验收后再部署。 / Integrate templates and deploy only after end-to-end acceptance.
 
 验收用例参见 [Phase 2 tests](../../../tests/PHASE2-ACCEPTANCE.md)，预算配置示例参见 [policy example](../../../templates/CLOUD-SPEND-POLICY.example.json)。这些文件是设计资产，**未声明部署或实际功能 PASS**。  
 See [Phase 2 tests](../../../tests/PHASE2-ACCEPTANCE.md) and [policy example](../../../templates/CLOUD-SPEND-POLICY.example.json). These are design assets and **do not claim deployed or runtime PASS**.
