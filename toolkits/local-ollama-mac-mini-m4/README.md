@@ -176,6 +176,19 @@ streamlx 还有一个需注意的默认行为：`STREAMLX_KEEPALIVE` 默认开�
 
 详细架构、推导、限制与证据见 [G6 Runtime Compatibility Audit](research/g6-runtime-compatibility-audit-2026-11-17.md)。
 
+### G6-Safety — 内存、功耗、热与 SSD 风险门槛
+
+**新增硬门槛：不以“先运行看看”作为模型适配的首要判断。** 在下载或执行大型 checkpoint 前，先完成 pinned Safetensors index/header 精确解析、shell/专家池/KV 或 recurrent state/scratch/runtime 逐项内存预算，以及公开硬件功耗与热资料审查。
+
+- Mac mini M4 16GB：Apple 公布 10-core GPU、120GB/s 内存带宽；M4 16GB 版本功耗表为 idle 4W / max 65W、最大热输出 222 BTU/h；官方工作环境 10–35°C。整机最大功耗不是某个 LLM 的预测功耗。
+- Notebookcheck 的 CPU+GPU 压力测试曾测得约 57–58W 持续整机功耗、SoC 约 102°C、风扇约 2,950 RPM；不是 PACS LLM 实测，不能外推为目标模型温度。
+- Apple Thermal State：Fair 降低预取/后台负载；Serious 停止接收新任务并卸载模型；Critical 中止推理并冷却。powermetrics 的功耗是估算，热状态读数是瞬时采样。
+- 形状推算的完整 routed-expert cold miss：Kimi 约 0.77 GiB/token，Qwen 122B 约 1.90 GiB/token；按 TS900 834.7 MiB/s 顺序读取参考，对应约 0.95s / 2.33s 的串行读取时间等价。不是实际 token latency，缓存命中、预取、I/O 合并和计算重叠会显著改变结果。
+- PACS 暂定至少保留 4 GiB 给 macOS + DSH + 后台服务；这是项目保守策略，不是 Apple 规格。模型侧 shell+expert cache+state+scratch+runtime 合计不得超过 12 GiB；若 DSH 基线需要更多，则进一步缩小模型预算。
+- 首个候选仅做静态可行性分析；单模型槽、并发 1、4K 起步、无 MTP/draft、有限缓存/预取。未完成内存、热和 SSD 温度证据前，不宣称适合无人值守持续服务。
+
+详细推导与限制见 [G6 Runtime Compatibility Audit](research/g6-runtime-compatibility-audit-2026-11-17.md#7d-g6-safety--16gb-memory-power-thermal-and-ssd-risk-gate-2026-11-17)。
+
 ## 安全边界
 
 - API 仅 loopback；禁止 0.0.0.0、LAN、端口转发或公网隧道。
