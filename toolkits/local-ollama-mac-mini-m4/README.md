@@ -212,6 +212,15 @@ streamlx 还有一个需注意的默认行为：`STREAMLX_KEEPALIVE` 默认开�
 
 详见 [G6 Runtime Compatibility Audit / G6.3 Qwen 122B memory envelope](research/g6-runtime-compatibility-audit-2026-11-17.md#7g-g63--qwen35-122b-a10b-16-gib-static-memory-envelope-calculation-2026-11-17)。
 
+### G6.2 — Qwen3.5-9B / Ministral 3 8B checkpoint audit (2026-11-18)
+
+- **Qwen3.5-9B-4bit**: pinned `mlx-community/Qwen3.5-9B-4bit@8b2b98c00a6b4d291155e4890773ca8f769aee53`; dense `qwen3_5`, 32 layers, 4-bit affine/group64, 5.95GB index total, two-shard tree/index agree at displayed level. MLX-VLM card documents image inference. Config-derived 4K KV ≈128MiB; linear recurrent state ≈48MiB. With a provisional 5GiB non-model reserve, weights + 4K cache leave ~5.29GiB for runtime/scratch/image buffers. **Source-level candidate for a separately authorized isolated 4K pilot; not hardware-accepted.**
+- **Ministral-3-8B-Instruct-2512 4-bit and 6-bit**: architecture is dense `mistral3`, 34 full-attention layers, 8 KV heads. Current visible model trees have two shards, but their Safetensors indices still map a three-shard `of-00003` layout and report 10.42GB total_size. The 4-bit and 6-bit artifacts are therefore **on hold for checkpoint/index inconsistency**; do not download until corrected. 4K KV estimate ≈544MiB, 8K ≈1.06GiB.
+- Neither model requires SSD expert streaming. Both use a dense model load path; the current 16GB gate is whole-model weights + KV + vision/prefill scratch + MLX/Metal runtime + OS/DSH reserve.
+- Existing Qwen3.5-4B remains installed as baseline/fallback. First pilot, if later approved: one model only, concurrency 1, 4K context, no simultaneous browser/Office/GUI agent, and no 4B co-residency.
+
+Full pinned revisions, source links, arithmetic and exact artifact findings: [G6 Runtime Compatibility Audit / G6.2 Dense 8B–9B audit](research/g6-runtime-compatibility-audit-2026-11-17.md#7i-g62--dense-8b9b-multimodal-checkpoint-audit-2026-11-18)。
+
 ### G6-Vision & App Integration — 截图理解与 Office 工作流
 
 - Qwen3.5-122B-A10B 的模型本身有 Vision Encoder，MLX 4-bit 模型卡提供 mlx-vlm 图像输入示例；Mistral Small 4 也支持图像输入。Kimi Linear 48B-A3B 是 text-generation/text-only checkpoint。
