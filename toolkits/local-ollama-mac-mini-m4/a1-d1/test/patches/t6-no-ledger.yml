@@ -1,0 +1,13 @@
+# T6a: enforce mode with no ledger file -> the guard must refuse before any provider call.
+- id: budget-guard
+  config:
+    mode: enforce
+    ledgerFile: ''
+    logFile: evidence/e2e/guard.jsonl
+    freeProviders: []
+    perRequestYuan: 0.2
+    dailyYuan: 2.0
+    prices:
+      mock-local:
+        inputPerMTok: 1.0
+        outputPerMTok: 1.0

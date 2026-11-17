@@ -1,0 +1,33 @@
+{
+  "name": "dsh-budget-guard",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pre-flight budget gate for DeepSeek Harness LLM calls: atomic reservations on llm/stream before next(), CNY per-request and per-day caps, fail-closed on unknown prices, post-hoc settlement from usage.",
+  "type": "module",
+  "main": "./lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "engines": {
+    "dsh": "^0.2.2-rc.3"
+  },
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "budget",
+    "cost-control",
+    "cordis"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "license": "MIT"
+}

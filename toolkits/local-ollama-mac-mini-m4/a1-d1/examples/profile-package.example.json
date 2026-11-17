@@ -1,0 +1,15 @@
+{
+  "name": "dsh-profile-example",
+  "private": true,
+  "dependencies": {},
+  "dsh": {
+    "profile": {
+      "bundles": [
+        "@deepseek-ai/dsh-base",
+        "@deepseek-ai/dsh-headless",
+        "dsh-local-first-router",
+        "dsh-budget-guard"
+      ]
+    }
+  }
+}

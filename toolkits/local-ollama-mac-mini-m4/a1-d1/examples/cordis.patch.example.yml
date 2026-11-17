@@ -1,0 +1,49 @@
+# 示例：生产 profile 的用户层 cordis.patch.yml（未执行，需评审）
+# 结构说明：先覆盖既有行，再 insert 新行。config 是整块替换，不是深合并。
+
+# 1) 本地模型走 pi-ai 的 OpenAI 兼容 provider（占位符，未提交任何真实地址）
+- id: llm-pi-ai
+  config:
+    providers:
+      local-openai-compatible:
+        displayName: Local (OpenAI compatible)
+        api: openai-completions
+        baseURL: <LOCAL_BASE_URL>
+        models:
+          - id: <LOCAL_MODEL_ID>
+            name: <LOCAL_MODEL_NAME>
+            contextWindow: 32768
+            maxTokens: 4096
+
+# 2) 默认模型指向本地（先用 local-only 稳定，再评估 local-first）
+- id: agent-default-model
+  config:
+    provider: local-openai-compatible
+    model: <LOCAL_MODEL_ID>
+
+# 3) 插入两个插件
+- insert:
+    - id: local-first-router
+      name: dsh-local-first-router
+      config:
+        policy: local-only
+        local:
+          provider: local-openai-compatible
+          model: <LOCAL_MODEL_ID>
+        strictSticky: true
+        logFile: <WORKSPACE_DIR>/evidence/prod/router.jsonl
+
+    - id: budget-guard
+      name: dsh-budget-guard
+      config:
+        mode: observe              # 先观察一天，核对金额量级后再切 enforce
+        ledgerFile: <STATE_DIR>/budget-ledger.jsonl
+        perRequestYuan: 0.2
+        dailyYuan: 2.0
+        freeProviders:
+          - local-openai-compatible
+        prices:
+          deepseek-official:       # 按真实计费口径填写，未填的 provider 会被拒绝
+            inputPerMTok: 0
+            outputPerMTok: 0
+        logFile: <WORKSPACE_DIR>/evidence/prod/guard.jsonl

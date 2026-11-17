@@ -1,0 +1,16 @@
+# T7b: the estimate fits the per-request cap but not the remaining daily budget.
+# Estimate is ~0.0985 CNY (about 1870 prompt tokens + 100 reserved output tokens at 50 CNY/MTok),
+# which is under perRequestYuan 0.2 but over dailyYuan 0.02.
+- id: budget-guard
+  config:
+    mode: enforce
+    ledgerFile: evidence/e2e/ledger.jsonl
+    logFile: evidence/e2e/guard.jsonl
+    freeProviders: []
+    perRequestYuan: 0.2
+    dailyYuan: 0.02
+    defaultReserveOutputTokens: 100
+    prices:
+      mock-local:
+        inputPerMTok: 50.0
+        outputPerMTok: 50.0

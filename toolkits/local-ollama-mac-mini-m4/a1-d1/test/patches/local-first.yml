@@ -1,0 +1,16 @@
+# T3: turn on the local-first policy for one run; the classifier is configured
+# with keywords so a cloud-ish prompt *would* be classified as cloud, which
+# proves the switch works while the asserted run stays local.
+- id: local-first-router
+  config:
+    policy: local-first
+    local:
+      provider: mock-local
+      model: mock-small
+    classifier:
+      cloudKeywords:
+        - '云端'
+        - 'gpt-4'
+        - 'cloud'
+    allowedRemoteProviders: []
+    logFile: evidence/e2e/router.jsonl   # relative to the process cwd (the test root)

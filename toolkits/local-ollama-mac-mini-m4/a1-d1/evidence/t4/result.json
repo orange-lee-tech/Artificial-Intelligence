@@ -1,0 +1,46 @@
+{
+  "case": 4,
+  "title": "llm/stream not calling next() => zero provider egress",
+  "verdict": "PASS",
+  "checks": [
+    {
+      "name": "terminal finish is an error",
+      "ok": true,
+      "detail": {
+        "kind": "error",
+        "failure": {
+          "code": "BUDGET_PER_REQUEST",
+          "message": "budget-guard: BUDGET_PER_REQUEST for mock-cloud/mock-small (reserve CNY 1030.0000, committed CNY 0.0000)"
+        }
+      }
+    },
+    {
+      "name": "error code is budget refusal",
+      "ok": true,
+      "detail": {
+        "code": "BUDGET_PER_REQUEST",
+        "message": "budget-guard: BUDGET_PER_REQUEST for mock-cloud/mock-small (reserve CNY 1030.0000, committed CNY 0.0000)"
+      }
+    },
+    {
+      "name": "adapter saw zero requests",
+      "ok": true,
+      "detail": {
+        "calls": 0
+      }
+    },
+    {
+      "name": "refusal mentions provider and amount",
+      "ok": true,
+      "detail": "budget-guard: BUDGET_PER_REQUEST for mock-cloud/mock-small (reserve CNY 1030.0000, committed CNY 0.0000)"
+    },
+    {
+      "name": "ledger file was never created",
+      "ok": true,
+      "detail": null
+    }
+  ],
+  "notes": [
+    "Refusal happens in the waterfall listener before next(), so the adapter stream is never invoked."
+  ]
+}

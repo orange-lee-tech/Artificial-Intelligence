@@ -1,0 +1,79 @@
+{
+  "case": "8",
+  "title": "concurrent reservations stay within the daily cap",
+  "verdict": "PASS",
+  "checks": [
+    {
+      "name": "all worker processes exited cleanly",
+      "ok": true,
+      "detail": []
+    },
+    {
+      "name": "every ledger line is complete JSON (no torn append)",
+      "ok": true,
+      "detail": {
+        "lines": 5,
+        "parsed": 5
+      }
+    },
+    {
+      "name": "exactly five reservations were admitted",
+      "ok": true,
+      "detail": [
+        0.106,
+        0.106,
+        0.106,
+        0.106,
+        0.106
+      ]
+    },
+    {
+      "name": "all reservation ids are unique",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "the admitted total stays within the daily cap",
+      "ok": true,
+      "detail": {
+        "reservedSum": 0.53,
+        "cap": 0.55
+      }
+    },
+    {
+      "name": "the admitted total matches five units (no lost reserve)",
+      "ok": true,
+      "detail": 0.53
+    },
+    {
+      "name": "fifteen calls were refused",
+      "ok": true,
+      "detail": 15
+    },
+    {
+      "name": "every refusal is BUDGET_DAILY",
+      "ok": true,
+      "detail": [
+        "BUDGET_DAILY"
+      ]
+    },
+    {
+      "name": "no reservation was settled or released",
+      "ok": true,
+      "detail": {
+        "settles": 0,
+        "releases": 0
+      }
+    },
+    {
+      "name": "no provider call happened (streams were abandoned before iteration)",
+      "ok": true,
+      "detail": null
+    }
+  ],
+  "notes": [
+    "Twenty real OS processes contended on the same ledger file; the lock is taken before read-check-append, so the check is serialized with the write.",
+    "Each worker reserved exactly one unit (CNY 0.106) and never iterated the stream, so pending reservations drive the cap.",
+    "Elapsed 232 ms for 20 processes."
+  ]
+}

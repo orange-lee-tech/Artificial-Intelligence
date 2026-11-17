@@ -1,0 +1,74 @@
+{
+  "case": "9",
+  "title": "an explicit subagent provider is still budget-constrained",
+  "verdict": "PASS",
+  "checks": [
+    {
+      "name": "the guard decision path has no agent-role or purpose branch",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "an over-budget subagent call is refused with BUDGET_PER_REQUEST",
+      "ok": true,
+      "detail": {
+        "kind": "error",
+        "failure": {
+          "code": "BUDGET_PER_REQUEST",
+          "message": "budget-guard: BUDGET_PER_REQUEST for mock-cloud/mock-small (reserve CNY 106.0000, committed CNY 0.0000)"
+        }
+      }
+    },
+    {
+      "name": "the refused subagent call never reached a provider",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "the refusal is logged with the subagent purpose and child session",
+      "ok": true,
+      "detail": [
+        {
+          "purpose": "subagent",
+          "sessionId": "child-agent-session-t9",
+          "code": "BUDGET_PER_REQUEST"
+        }
+      ]
+    },
+    {
+      "name": "an in-budget subagent call is admitted and answered",
+      "ok": true,
+      "detail": {
+        "text": "mock reply",
+        "kind": "stop"
+      }
+    },
+    {
+      "name": "the admitted call used the explicitly selected provider once",
+      "ok": true,
+      "detail": [
+        {
+          "provider": "mock-cloud",
+          "purpose": "subagent"
+        }
+      ]
+    },
+    {
+      "name": "the admitted subagent call reserved and settled on the ledger",
+      "ok": true,
+      "detail": {
+        "reserve": 0.106,
+        "settle": 0.04
+      }
+    },
+    {
+      "name": "no free-provider shortcut was applied to the child session",
+      "ok": true,
+      "detail": null
+    }
+  ],
+  "notes": [
+    "Simulated subagent shape only: the mini harness mounts no agent tree, so real subagent wiring of purpose/sessionId remains NOT_TESTED.",
+    "Guard enforcement is provider- and role-agnostic: it keys on GenerateOptions, and no code path checks who issued the call."
+  ]
+}

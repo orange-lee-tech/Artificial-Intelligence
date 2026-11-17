@@ -1,0 +1,110 @@
+{
+  "case": "2",
+  "title": "agent/inbox/inserted precedes the first model request",
+  "verdict": "PASS",
+  "checks": [
+    {
+      "name": "headless run produced the mock answer",
+      "ok": true,
+      "detail": {
+        "status": 0,
+        "signal": null,
+        "ms": 485,
+        "tail": "mock reply\n"
+      }
+    },
+    {
+      "name": "router recorded exactly one routing decision",
+      "ok": true,
+      "detail": [
+        {
+          "t": "2026-11-17T05:25:11.770Z",
+          "event": "route",
+          "sessionId": "session-<redacted>",
+          "messageId": "<redacted>",
+          "kind": "local",
+          "provider": "mock-local",
+          "model": "mock-small",
+          "rule": "policy:local-only",
+          "decidedAt": 1794893111770,
+          "textChars": 23
+        }
+      ]
+    },
+    {
+      "name": "decision is local and names mock-local/mock-small",
+      "ok": true,
+      "detail": {
+        "t": "2026-11-17T05:25:11.770Z",
+        "event": "route",
+        "sessionId": "session-<redacted>",
+        "messageId": "<redacted>",
+        "kind": "local",
+        "provider": "mock-local",
+        "model": "mock-small",
+        "rule": "policy:local-only",
+        "decidedAt": 1794893111770,
+        "textChars": 23
+      }
+    },
+    {
+      "name": "exactly one model request was made",
+      "ok": true,
+      "detail": [
+        {
+          "t": "2026-11-17T05:25:11.809Z",
+          "event": "request",
+          "seq": 1,
+          "provider": "mock-local",
+          "model": "mock-small",
+          "purpose": null,
+          "sessionId": "session-<redacted>",
+          "mode": "ok",
+          "messageCount": 3
+        }
+      ]
+    },
+    {
+      "name": "that request went to the local mock provider",
+      "ok": true,
+      "detail": {
+        "t": "2026-11-17T05:25:11.809Z",
+        "event": "request",
+        "seq": 1,
+        "provider": "mock-local",
+        "model": "mock-small",
+        "purpose": null,
+        "sessionId": "session-<redacted>",
+        "mode": "ok",
+        "messageCount": 3
+      }
+    },
+    {
+      "name": "routing timestamp is not after the request timestamp",
+      "ok": true,
+      "detail": {
+        "route": "2026-11-17T05:25:11.770Z",
+        "request": "2026-11-17T05:25:11.809Z"
+      }
+    },
+    {
+      "name": "the recorded decision time precedes the request time",
+      "ok": true,
+      "detail": {
+        "decidedAt": 1794893111770,
+        "request": "2026-11-17T05:25:11.809Z"
+      }
+    },
+    {
+      "name": "no cloud-classified request reached the cloud mock provider",
+      "ok": true,
+      "detail": [
+        "mock-local"
+      ]
+    }
+  ],
+  "notes": [
+    "real headless profile a1d1-isolated, one prompt, router + mock JSONL evidence",
+    "route event precedes the first adapter request in the same run"
+  ]
+}

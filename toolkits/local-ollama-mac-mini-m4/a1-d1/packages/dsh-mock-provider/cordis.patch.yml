@@ -1,0 +1,16 @@
+# dsh-mock-provider bundle patch.
+# Registered dormant: it only adds providers that nothing selects until a test
+# profile points agent-default-model at them.
+#
+# - id: mock-provider
+#   config:
+#     providers: [mock-local, mock-cloud]
+#     logFile: /absolute/path/mock-calls.jsonl
+#     behaviors:
+#       mock-local: [{ mode: timeout, code: TIMEOUT }, { mode: ok }]
+#
+- insert:
+    - id: mock-provider
+      name: dsh-mock-provider
+      config:
+        providers: [mock-local, mock-cloud]

@@ -1,0 +1,63 @@
+{
+  "case": "10",
+  "title": "crash and unload leave the budget ledger honest",
+  "verdict": "PASS",
+  "checks": [
+    {
+      "name": "the worker reserved a stream and then died by SIGKILL",
+      "ok": true,
+      "detail": "{\"signal\":\"SIGKILL\",\"out\":\"RESERVED\",\"err\":\"\"}"
+    },
+    {
+      "name": "the outstanding reservation survives the crash as pending",
+      "ok": true,
+      "detail": "[{\"type\":\"reserve\",\"id\":\"2026-11-17-11644-mwk90njw-1\",\"ts\":\"2026-11-17T05:25:15.452Z\",\"date\":\"2026-11-17\",\"amount\":0.106,\"provider\":\"mock-cloud\",\"model\":\"mock-small\"}]"
+    },
+    {
+      "name": "the killed process did not leave its lock file behind",
+      "ok": true,
+      "detail": "<test-root>/evidence/t10/ledger.jsonl.lock"
+    },
+    {
+      "name": "a new process counts the crashed reservation and refuses to exceed the daily cap",
+      "ok": true,
+      "detail": "{\"reason\":{\"kind\":\"error\",\"failure\":{\"code\":\"BUDGET_DAILY\",\"message\":\"budget-guard: BUDGET_DAILY for mock-cloud/mock-small (reserve CNY 0.1060, committed CNY 0.1060)\"}},\"committed\":[null]}"
+    },
+    {
+      "name": "the refused stream after the crash never reached a provider",
+      "ok": true,
+      "detail": "[\"adapter-registered\",\"adapter-registered\"]"
+    },
+    {
+      "name": "a stale lock is reclaimed and the reservation lands",
+      "ok": true,
+      "detail": "{\"text\":\"mock reply\",\"leftover\":false}"
+    },
+    {
+      "name": "a live lock makes the guard fail closed instead of reserving",
+      "ok": true,
+      "detail": "{\"reason\":{\"kind\":\"error\",\"failure\":{\"code\":\"BUDGET_LEDGER_ERROR\",\"message\":\"budget-guard: BUDGET_LEDGER_ERROR for mock-cloud/mock-small (reserve CNY NaN, committed CNY 0.0000)\"}},\"denied\":1,\"ledgerLines\":3}"
+    },
+    {
+      "name": "while mounted the guard reserves and settles a paid call",
+      "ok": true,
+      "detail": "[{\"type\":\"reserve\",\"id\":\"2026-11-17-11644-mwk90njw-1\",\"ts\":\"2026-11-17T05:25:15.452Z\",\"date\":\"2026-11-17\",\"amount\":0.106,\"provider\":\"mock-cloud\",\"model\":\"mock-small\"},{\"type\":\"reserve\",\"id\":\"2026-11-17-11643-mwk90nkj-1\",\"ts\":\"2026-11-17T05:25:15.475Z\",\"date\":\"2026-11-17\",\"amount\":0.106,\"provider\":\"mock-cloud\",\"model\":\"mock-small\"},{\"type\":\"settle\",\"id\":\"2026-11-17-11643-mwk90nkj-1\",\"ts\":\"2026-11-17T05:25:15.479Z\",\"date\":\"2026-11-17\",\"amount\":0.04},{\"type\":\"reserve\",\"id\":\"2026-11-17-11643-mwk90nt9-1\",\"ts\":\"2026-11-17T05:25:15.789Z\",\"date\":\"2026-11-17\",\"amount\":0.106,\"provider\":\"mock-cloud\",\"model\":\"mock-small\"},{\"type\":\"settle\",\"id\":\"2026-11-17-11643-mwk90nt9-1\",\"ts\":\"2026-11-17T05:25:15.792Z\",\"date\":\"2026-11-17\",\"amount\":0.04}]"
+    },
+    {
+      "name": "dispose does not settle or release an in-flight reservation",
+      "ok": true,
+      "detail": "{\"before\":5,\"inflight\":6,\"after\":6}"
+    },
+    {
+      "name": "after dispose a paid call is no longer guarded and still reaches the provider",
+      "ok": true,
+      "detail": "{\"text\":\"mock reply\",\"guardLines\":0,\"ledgerLines\":0,\"reqBefore\":1,\"reqAfter\":3}"
+    }
+  ],
+  "notes": [
+    "crash worker killed by SIGKILL after RESERVED",
+    "pending reservation",
+    "stale and live lock behaviour",
+    "guard dispose keeps pending, removes listener"
+  ]
+}

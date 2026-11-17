@@ -1,0 +1,79 @@
+{
+  "case": "5",
+  "title": "retry after a local timeout stays on the local provider",
+  "verdict": "PASS",
+  "checks": [
+    {
+      "name": "the retried step finally produced the scripted answer",
+      "ok": true,
+      "detail": {
+        "status": 0,
+        "ms": 415,
+        "tail": "retry ok\n"
+      }
+    },
+    {
+      "name": "the first local call was scripted to time out",
+      "ok": true,
+      "detail": {
+        "t": "2026-11-17T05:25:12.864Z",
+        "event": "request",
+        "seq": 1,
+        "provider": "mock-local",
+        "model": "mock-small",
+        "purpose": null,
+        "sessionId": "session-<redacted>",
+        "mode": "timeout",
+        "messageCount": 3
+      }
+    },
+    {
+      "name": "a retry happened after the timeout",
+      "ok": true,
+      "detail": [
+        "1:timeout",
+        "2:ok"
+      ]
+    },
+    {
+      "name": "every attempt, including the retry, used the local provider",
+      "ok": true,
+      "detail": [
+        "mock-local",
+        "mock-local"
+      ]
+    },
+    {
+      "name": "no attempt was made on the cloud mock provider",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "routing ran only once, so the retry could not re-route",
+      "ok": true,
+      "detail": [
+        {
+          "t": "2026-11-17T05:25:12.825Z",
+          "event": "route",
+          "sessionId": "session-<redacted>",
+          "messageId": "<redacted>",
+          "kind": "local",
+          "provider": "mock-local",
+          "model": "mock-small",
+          "rule": "policy:local-only",
+          "decidedAt": 1794893112825,
+          "textChars": 6
+        }
+      ]
+    },
+    {
+      "name": "no local-route lock violation was logged",
+      "ok": true,
+      "detail": []
+    }
+  ],
+  "notes": [
+    "real headless run with a scripted TIMEOUT on the first call and a scripted ok on the second",
+    "llm-retry is the stock plugin in the profile; the second request is the retry"
+  ]
+}

@@ -1,0 +1,13 @@
+# T7a: nothing can be reserved because the single-request cap is smaller than the estimate.
+- id: budget-guard
+  config:
+    mode: enforce
+    ledgerFile: evidence/e2e/ledger.jsonl
+    logFile: evidence/e2e/guard.jsonl
+    freeProviders: []
+    perRequestYuan: 0.2
+    dailyYuan: 2.0
+    prices:
+      mock-local:
+        inputPerMTok: 1000000.0
+        outputPerMTok: 1000000.0

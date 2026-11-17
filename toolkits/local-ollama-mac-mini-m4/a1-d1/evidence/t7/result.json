@@ -1,0 +1,103 @@
+{
+  "case": "7",
+  "title": "per-request and daily caps",
+  "verdict": "PASS",
+  "checks": [
+    {
+      "name": "control: an affordable request is admitted",
+      "ok": true,
+      "detail": {
+        "status": 0,
+        "tail": "mock reply\n"
+      }
+    },
+    {
+      "name": "control: the call was actually made",
+      "ok": true,
+      "detail": {
+        "ledgerEvents": 2
+      }
+    },
+    {
+      "name": "control: the reservation was settled, not left pending",
+      "ok": true,
+      "detail": {
+        "reserve": [
+          {
+            "type": "reserve",
+            "id": "2026-11-17-11596-mwk90mk7-1",
+            "ts": "2026-11-17T05:25:14.167Z",
+            "date": "2026-11-17",
+            "amount": 0.09975,
+            "provider": "mock-local",
+            "model": "mock-small"
+          }
+        ],
+        "settle": [
+          {
+            "type": "settle",
+            "id": "2026-11-17-11596-mwk90mk7-1",
+            "ts": "2026-11-17T05:25:14.180Z",
+            "date": "2026-11-17",
+            "amount": 0.002
+          }
+        ]
+      }
+    },
+    {
+      "name": "control: the settled amount is finite and within the cap",
+      "ok": true,
+      "detail": {
+        "type": "settle",
+        "id": "2026-11-17-11596-mwk90mk7-1",
+        "ts": "2026-11-17T05:25:14.180Z",
+        "date": "2026-11-17",
+        "amount": 0.002
+      }
+    },
+    {
+      "name": "per-request: BUDGET_PER_REQUEST is reported",
+      "ok": true,
+      "detail": [
+        {
+          "t": "2026-11-17T05:25:14.573Z",
+          "event": "denied",
+          "code": "BUDGET_PER_REQUEST",
+          "provider": "mock-local",
+          "model": "mock-small",
+          "amount": 2919,
+          "sessionId": "session-<redacted>"
+        }
+      ]
+    },
+    {
+      "name": "per-request: zero provider calls",
+      "ok": true,
+      "detail": []
+    },
+    {
+      "name": "daily: BUDGET_DAILY is reported",
+      "ok": true,
+      "detail": [
+        {
+          "t": "2026-11-17T05:25:14.970Z",
+          "event": "denied",
+          "code": "BUDGET_DAILY",
+          "provider": "mock-local",
+          "model": "mock-small",
+          "amount": 0.09975,
+          "sessionId": "session-<redacted>"
+        }
+      ]
+    },
+    {
+      "name": "daily: zero provider calls",
+      "ok": true,
+      "detail": []
+    }
+  ],
+  "notes": [
+    "All three runs use the isolated headless profile; the only registered provider is the mock adapter.",
+    "Each refusal happens in the llm/stream waterfall before next(), so no adapter is reached."
+  ]
+}

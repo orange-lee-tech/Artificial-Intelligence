@@ -1,0 +1,14 @@
+# T7 control: the estimate fits both caps, so exactly one call is admitted.
+- id: budget-guard
+  config:
+    mode: enforce
+    ledgerFile: evidence/e2e/ledger.jsonl
+    logFile: evidence/e2e/guard.jsonl
+    freeProviders: []
+    perRequestYuan: 0.2
+    dailyYuan: 0.5
+    defaultReserveOutputTokens: 100
+    prices:
+      mock-local:
+        inputPerMTok: 50.0
+        outputPerMTok: 50.0

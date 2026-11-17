@@ -1,0 +1,18 @@
+# T5: first local call fails with a retryable TIMEOUT, the retry must stay local.
+- id: mock-provider
+  config:
+    providers:
+      - mock-local
+      - mock-cloud
+    logFile: evidence/e2e/mock-calls.jsonl   # relative to the process cwd (the test root)
+    text: 'retry ok'
+    behaviors:
+      mock-local:
+        - mode: timeout
+        - mode: ok
+          text: 'retry ok'
+    retryPolicy:
+      mode: normal
+      maxRetries: 2
+      initialDelayMs: 10
+      maxDelayMs: 40

@@ -1,0 +1,61 @@
+{
+  "case": "6",
+  "title": "no reservation -> no provider call (fail closed)",
+  "verdict": "PASS",
+  "checks": [
+    {
+      "name": "(a) BUDGET_NO_LEDGER is reported",
+      "ok": true,
+      "detail": [
+        {
+          "t": "2026-11-17T05:25:13.332Z",
+          "event": "denied",
+          "code": "BUDGET_NO_LEDGER",
+          "provider": "mock-local",
+          "model": "mock-small",
+          "sessionId": "session-<redacted>"
+        }
+      ]
+    },
+    {
+      "name": "(a) not a single provider call was attempted",
+      "ok": true,
+      "detail": []
+    },
+    {
+      "name": "(a) the step produced no model text",
+      "ok": true,
+      "detail": {
+        "tail": "\n"
+      }
+    },
+    {
+      "name": "(b) BUDGET_UNKNOWN_PRICE is reported",
+      "ok": true,
+      "detail": [
+        {
+          "t": "2026-11-17T05:25:13.731Z",
+          "event": "denied",
+          "code": "BUDGET_UNKNOWN_PRICE",
+          "provider": "mock-local",
+          "model": "mock-small",
+          "sessionId": "session-<redacted>"
+        }
+      ]
+    },
+    {
+      "name": "(b) not a single provider call was attempted",
+      "ok": true,
+      "detail": []
+    },
+    {
+      "name": "(b) no ledger was written for a refused call",
+      "ok": true,
+      "detail": []
+    }
+  ],
+  "notes": [
+    "Both refusals are real headless runs of the a1d1-isolated profile; the mock adapter is the only registered provider.",
+    "The budget-guard yields a terminal finish chunk without calling next(), so the adapter is never prepared or streamed."
+  ]
+}
