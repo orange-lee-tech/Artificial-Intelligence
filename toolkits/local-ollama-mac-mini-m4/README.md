@@ -1,7 +1,7 @@
 # Mac mini M4 本地模型部署工具包
 
 **版本：** 0.1.0  
-**状态：** IN PROGRESS — G0 PASS / G1 INSTALLED / G2 APPLIED / G2.1 COPY VERIFIED / G3 FUNCTIONAL PASS / G4 BASELINE CAPTURED (DSH CO-RESIDENCY NOT TESTED) / G5 NON-ZERO-DATA BASELINE CAPTURED (SINGLE RUN; SUSTAINED TEST NOT DONE)  
+**状态：** IN PROGRESS — G0 PASS / G1 INSTALLED / G2 APPLIED / G2.1 COPY VERIFIED / G3 FUNCTIONAL PASS / G4 BASELINE CAPTURED (DSH CO-RESIDENCY NOT TESTED) / G5 NON-ZERO-DATA BASELINE CAPTURED (SINGLE RUN; SUSTAINED TEST NOT DONE) / G6.1 RUNTIME SOURCE AUDIT COMPLETE (NO INSTALL; CHECKPOINT AND 16GB PILOT PENDING)  
 **主机：** Apple Silicon M4，16 GiB 统一内存  
 **运行时：** Ollama macOS 应用  
 **已部署基线模型：** qwen3.5:4b（本机 API 元数据报告 NVFP4 / MLX）  
@@ -136,6 +136,21 @@ node scripts/mac/benchmark.mjs
 - **MoE 三层机制。** (1) token-level MoE Router 选择当前 token 的 top-k experts；(2) SSD Streaming Runtime 仅把选中的专家权重读入有界内存缓存，trunk/shared weights 与 KV cache 仍占统一内存；(3) PACS Task Router 按任务难度选择 4B / MoE / cloud。
 - **16GB 硬约束。** 模型权重在 SSD 不代表零内存；必须为 macOS、DSH、runtime、非专家 trunk、专家缓存、KV cache 和临时 buffer 留余量。初始采用单请求、短上下文、运行时自动/保守 cache，记录 Memory Pressure、swap、RSS 和 tokens/s；任何持续 swap thrash / memory pressure yellow-red 即停止。
 - **当前不下载 35B。** 先修复 Ollama G3。之后只在隔离目录审计运行时与模型架构的精确兼容性。`serve-mlx` 是 pre-release 单用户 server，公开清单中的 tested checkpoints 与 Qwen3.5-35B-A3B 不能自动等同；不允许仅按“35B-A3B”名称推断兼容。
+
+## G6 — Runtime 兼容性审查（2026-11-17）
+
+**当前状态：G6.1 SOURCE AUDIT COMPLETE；G6 总体仍 IN PROGRESS。** 本阶段只读审查了 streamlx、serve-mlx 和 llama.cpp MoE disk-paging PoC 的源码、依赖、许可证、模型适配、专家读取、缓存、预取及内存保护路径。没有安装 Runtime，没有下载模型，没有修改 Ollama / DSH 生产配置。
+
+第一轮结论：
+- **streamlx：** 当前最值得深入的性能候选。它用 Safetensors byte-range index、合并读取、并发 `pread/preadv`，将专家数据直接写入预分配的 MLX pool storage，并有逐层 LRU、下一层预取和可选 MTP pipeline。注意：逐层 top-k 最低 slot 数可能使实际 pool bytes 超过 `--budget-gib`；`--memory-gib` 是可选的请求期池大小治理，不是完整的 macOS Memory Pressure / Swap watchdog。第一轮 16GB 试验不得启用 MTP/draft。
+- **serve-mlx：** 当前最值得借鉴的内存安全参考。它显式预算 working set、shell、KV、scratch 和 safety margin；压力持续时依次禁用预取、驱逐、缩小缓存、拒绝继续执行。源码包含 `qwen3_5_moe` adapter，但小型合成模型测试不能代替真实大 checkpoint 验证。
+- **llama.cpp PoC：** 作为原生 Metal 参考，采用 Metal Shared Memory slot pool、CPU sidecar、`pread` 和 `MTLSharedEvent`。它属于独立 fork/PR，不是上游正式功能。
+
+当前暂定后续审查优先级：streamlx 性能路径 P0；serve-mlx 内存安全与正确性参考 P0；llama.cpp 原生 Metal 路线 P1。该排序不代表已经选定最终 Runtime。
+
+**下一步：** G6.2 精确 checkpoint / tensor layout / quantization 兼容性审查；G6.3 计算目标模型的 per-layer top-k 最低专家槽位和 16GiB 内存包络；G6.4 设计 TS900 runtime-level 合并读取与 I/O/Metal overlap 测试。以上均不要求先下载完整大模型。
+
+详细报告：[G6 Runtime Compatibility Audit](research/g6-runtime-compatibility-audit-2026-11-17.md)。
 
 ## 安全边界
 
