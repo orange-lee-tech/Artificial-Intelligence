@@ -1,7 +1,7 @@
 # Mac mini M4 本地模型部署工具包
 
 **版本：** 0.1.0  
-**状态：** IN PROGRESS — G0 PASS / G1 INSTALLED / G2–G9 NOT TESTED  
+**状态：** IN PROGRESS — G0 PASS / G1 INSTALLED / G2 APPLIED / G3 RUNTIME VERIFY PENDING  
 **主机：** Apple Silicon M4，16 GiB 统一内存  
 **运行时：** Ollama macOS 应用  
 **首选模型候选：** qwen3.5:4b-q4_K_M  
@@ -68,6 +68,8 @@ bash scripts/mac/configure-model-store.sh --apply
 ~~~
 
 第二条命令有副作用，要求在 Terminal 中键入 APPLY。它会在用户 launchd 环境设置 OLLAMA_MODELS、OLLAMA_HOST=127.0.0.1:11434、OLLAMA_NO_CLOUD=1，并在用户私有目录保存原值。不会移动旧模型、不会重启应用。设置后需退出并重新打开 Ollama。 launchd 环境变量跨注销/重启的持久性尚未验证；登录后如预检发现变量缺失，可再次运行 --apply，脚本会复用原备份。当前工具包不配置 Ollama 开机自启。
+
+**本机执行记录（2026-11-17）：** G2 `--apply` 已返回 `[APPLIED]`；目标目录为 `/Volumes/SSD/AI-Workspace/models`；原值备份已创建于 `~/.pacs/ollama-deploy/launchctl-env.before`。Ollama 退出并重新打开后的进程环境、实际监听地址和 `OLLAMA_NO_CLOUD` 生效状态尚待 G3 验证。
 
 回滚：
 ~~~bash
