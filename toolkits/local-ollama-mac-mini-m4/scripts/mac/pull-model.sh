@@ -20,7 +20,8 @@ NO_CLOUD="$(launchctl getenv OLLAMA_NO_CLOUD 2>/dev/null || true)"
 [[ "$NO_CLOUD" == "1" ]] || die "OLLAMA_NO_CLOUD=1 is required."
 FREE_KB="$(df -Pk "$MODEL_DIR" | awk 'NR==2 {print $4}')"
 [[ -n "$FREE_KB" && "$FREE_KB" -ge 10485760 ]] || die "At least 10 GiB free space required."
-if ollama list 2>/dev/null | awk 'NR>1 {print $1}' | grep -Fxq "$MODEL_TAG"; then
+INSTALLED_MODELS="$(ollama list 2>/dev/null || true)"
+if printf '%s\n' "$INSTALLED_MODELS" | awk -v tag="$MODEL_TAG" 'NR>1 && $1==tag {found=1} END {exit !found}'; then
   printf '[PASS] Model already present: %s\n' "$MODEL_TAG"; exit 0
 fi
 printf 'Mode: %s\nModel: %s\nModel store: %s\nFree space: %s KiB\n' "$MODE" "$MODEL_TAG" "$ACTIVE_MODELS" "$FREE_KB"
