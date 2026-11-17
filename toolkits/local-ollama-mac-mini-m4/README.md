@@ -152,25 +152,29 @@ node scripts/mac/benchmark.mjs
 
 streamlx 还有一个需注意的默认行为：`STREAMLX_KEEPALIVE` 默认开启，会在 I/O 等待时提交 GPU keepalive 工作；首轮正确性/内存基线应先设置 `STREAMLX_KEEPALIVE=0`，稳定后再进行开关 A/B 测试。 详细报告：[G6 Runtime Compatibility Audit](research/g6-runtime-compatibility-audit-2026-11-17.md)。
 
-## G6.2 — 精确模型兼容性审查（2026-11-17）
+## G6.2 — 精确模型兼容性与 8–10B 激活参数选型（2026-11-17）
 
-**阶段结果：找到强匹配候选，但 G6.2 尚未完全关闭。**
+**当前首选研究目标：Qwen3.5-122B-A10B（122B 总参数 / 10B 激活参数）。** 这是模型能力优先、探索 8–10B 激活档后的新选择；Kimi Linear 48B-A3B 保留为 3B-active 对照，不再视为唯一主候选。
 
-首选候选：`mlx-community/Kimi-Linear-48B-A3B-Instruct-4bit`，模型卡显示 49B 总参数、3B 激活参数、27.6GB MLX safetensors。配置为 `model_type=kimi_linear`，27 层（首层 dense，推导出 26 个 MoE 层），每层 256 个 routed experts、top-8、1 个 shared expert，expert intermediate 1024、hidden 2304；采用 4-bit affine group64，路由 gate projection 为 8-bit。注意力为 20 个 KDA linear-attention 层 + 7 个 MLA full-attention 层。许可证：该 MLX checkpoint 卡片标注 MIT；配置包含 `auto_map`，需留意 custom code。
+- 官方模型卡：<https://huggingface.co/Qwen/Qwen3.5-122B-A10B>
+- 标准 MLX 4-bit checkpoint：<https://huggingface.co/mlx-community/Qwen3.5-122B-A10B-4bit>，69.6 GB / 14 shards。
+- 另有 TurboQuant-MLX 低比特专家版本：<https://huggingface.co/manjunathshiva/Qwen3.5-122B-A10B-tq3a-tqTe-g64>，30.9 GB；这是独立量化和 Runtime 路线，不等同标准 4-bit MLX。
 
-- MLX checkpoint：<https://huggingface.co/mlx-community/Kimi-Linear-48B-A3B-Instruct-4bit>
-- 本次检查的 checkpoint commit：`919175d75427f1c10cfc17e7254b53295edddf72`
-- streamlx README 明确将 `kimi_linear` 列为已验证模型家族，且该 checkpoint index 里可见 `model.layers.N.mlp.switch_mlp.{gate_proj,up_proj,down_proj}` 权重、scales、biases 键名，结构上与 streamlx 的 stacked `switch_mlp` 路径吻合。
+公开配置：48 层、256 routed experts、每 Token top-8 + 1 shared expert、hidden 3072、expert intermediate 1024；Gated DeltaNet + Gated Attention 混合骨干。上游许可证 Apache-2.0。
 
-**重要配置键细节：** Kimi config 使用 `num_experts_per_token`，streamlx 当前 `_routed_topk()` 读取 `num_experts_per_tok`，否则默认 8。此 checkpoint 实际 top-k 恰为 8，所以默认值碰巧正确；后续加载应显式传 `k=8` 或增加配置键兼容检查。
+**Runtime 路线区分：**
+1. 标准 MLX 4-bit + streamlx：qwen3_5_moe 与 stacked switch_mlp 结构有源码级匹配；但尚未在本机 16GB 上运行。按 48×top-8=384 slots 和 4-bit group64 粗估最低专家池约 1.90 GiB（INFERRED，须用精确 index 验证）。
+2. TurboQuant-MLX：作者公开报告在 16GB M4 mini 上，30.9GB 的 tq3a-tqTe-g64 版本以 8GB expert cache 达到约 2.1 tok/s、82% hit、11.3GB peak。此为第三方报告，不是 PACS 实测；低比特量化质量需单独评估，且 11.3GB 峰值尚未证明可与 DSH 并发安全运行。
 
-**最低专家池估算（INFERRED，非精确索引测量）：** 以 26 层 × top-8 × 每专家 3 个 2304×1024 SwiGLU 矩阵、4-bit 权重及 group64 FP16 scale/bias 粗算，最低 208 个 slot，约 0.77 GiB。该数值尚未从 pinned safetensors index 完整解析每层真实 byte ranges，不能当作最终精确值。
+次级候选：Mistral Small 4（119B / 6.5B active，Apache-2.0）。它较新且面向通用、推理、编程和 Agent，但 4-bit MLX checkpoint 约 67.8GB，使用定制 mistral4 MLX 实现；没有已验证的 16GB streamlx 路径，暂列 P2。
 
-该模型的 20 个 KDA 层可能有利于 KV/state 增长，但不能据此假定 cache 为零。模型配置的 1M context 也不代表 16GB 可用。
+Kimi 家族审查：目前没有找到 Moonshot 发布的约 70B 总参数、8–10B 激活的 Kimi Linear 同类模型。Kimi-Dev-72B 是基于 Qwen2.5-72B 的 Dense 模型（非稀疏 MoE，代际也较早）；Kimi K2/K3 激活规模远超目标。故不为品牌一致性选旧模型。
 
-次级候选：Qwen3.6-35B-A3B 4-bit（streamlx 有 32GB M4 Air 测试曲线）；Gemma 4 26B-A4B 8-bit（serve-mlx 有模型适配/测试）；Laguna-S-2.1 117B oQ2e-fast 仅作大模型压力测试，不作为 16GB 首选。
+**现有 Qwen3.5-4B 保留为本机基准、回退和对照模型，不安装 3B 替代品、不删除 4B 文件。** 大模型试验时只停止其 Runner，遵守单模型执行槽。
 
-详细证据、计算假设与未完成项见 [G6 Runtime Compatibility Audit](research/g6-runtime-compatibility-audit-2026-11-17.md) 的 G6.2 部分。
+F117 项目硬件记录：i7-7700HQ、32GB DDR4、GTX 1050 Ti 4GB。它是独立旧款 Windows/NVIDIA 节点；以太网只能提供 RPC 连接，不能把其 RAM/VRAM 合并进 Mac 的统一内存，也不能假设 MLX/Metal Runtime 可移植。
+
+详细模型数据、来源、量化和资源限制见 [G6 Runtime Compatibility Audit](research/g6-runtime-compatibility-audit-2026-11-17.md) 的 G6.2 扩展章节。
 
 ## 安全边界
 
