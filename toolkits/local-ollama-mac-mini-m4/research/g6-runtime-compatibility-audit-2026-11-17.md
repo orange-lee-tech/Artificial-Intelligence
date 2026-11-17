@@ -907,13 +907,70 @@ The shape-derived cold-miss envelope for all 384 routed experts selected by a to
 
 This calculation closes the first-order *static arithmetic* question. It does not close G6.2 exact-checkpoint compatibility, G6.3 measured peak memory, G6.4 I/O/Metal overlap, or thermal acceptance. No download, installation, runtime execution or production configuration change was performed.
 
+## 7H. G6.3 correction — Qwen 122B cache locality, prefill traffic and deployment suitability (2026-11-18)
+
+This section qualifies the optimistic static-memory conclusion in 7G. The previous 7G calculation showed that a constrained memory layout is arithmetically plausible; it did **not** establish an acceptable cache hit rate, prefill latency, decode throughput, thermal behavior or daily-use suitability. The model should not be promoted to the first deployment choice on that basis.
+
+### 1. streamlx allocates slots per MoE layer, not as one freely shared cache
+
+Pinned source inspected: streamlx commit `9ab2cca54c3e2e5397718c0a5997b22537c7a454`, especially `streamlx/integrate.py`, `streamlx/pool.py`, and `README.md`.
+
+- `load_streaming_model()` divides the expert budget equally by the number of MoE layers and each layer's expert bytes.
+- Each layer receives `max(top_k, int(budget / layer_count / expert_bytes))` slots.
+- Each layer uses an independent LRU. Slots from a layer that has spare locality cannot simply be reassigned to another layer.
+- `pool.py` exposes hit, miss, eviction, fetch-time and bytes-read counters, but no Qwen3.5-122B route trace or measured hit rate is available.
+
+For the Qwen 122B shape estimate (48 MoE layers, 256 experts/layer, 5.0625 MiB/expert):
+
+| Nominal expert budget | Actual integer slots/layer | Allocated pool bytes | Fraction of 256 expert IDs resident/layer |
+|---:|---:|---:|---:|
+| 2 GiB | 8 (minimum top-k) | 1.898 GiB | 3.1% |
+| 2.5 GiB | 10 | 2.373 GiB | 3.9% |
+| 3 GiB | 12 | 2.848 GiB | 4.7% |
+| 4 GiB | 16 | 3.797 GiB | 6.3% |
+
+The 2.5 GiB proposal therefore provides only two slots above the eight experts needed by each layer for one decode token. Three GiB provides four extra slots. Under an independent uniform-routing thought experiment, expected hits would be roughly the resident fraction (about 3.9–4.7% at these budgets). **This is not a measured or predicted model hit rate**: real routers can have strongly skewed hot-expert distributions, which may improve locality substantially. The missing evidence is an actual representative routing trace and measured per-layer hit/miss data.
+
+For comparison, the pinned Kimi Linear 48B-A3B source-level shape audit has 26 MoE layers and an estimated 3.797 MiB/expert. With the same nominal budget, the implementation would allocate about 25 slots/layer at 2.5 GiB (about 2.41 GiB actual) or 31 slots/layer at 3 GiB (about 2.99 GiB actual): about 9.8% or 12.1% of its 256 expert IDs per layer under the same uniform thought experiment. Kimi's structural `switch_mlp` layout and `kimi_linear` family are explicitly listed by streamlx; the exact pinned Kimi checkpoint still needs its own runtime correctness test. Kimi Linear is text-only.
+
+### 2. Decode cold-read and cache-miss exposure
+
+The 1.898 GiB selected-expert set per Qwen token is the all-cold-miss envelope. At the PACS TS900 uncached-read reference of 834.7 MiB/s, its serial transfer equivalent is about 2.33 seconds. If the route distribution behaved like the uniform thought experiment above, a 2.5–3 GiB pool would still miss roughly 95–96% of selected expert lookups, corresponding to about 2.22–2.24 seconds of serialized read-equivalent per token. This is **not** a throughput forecast: real route skew, expert reuse, next-layer prefetch, I/O/compute overlap and read merging change wall time. It does show why the missing routing trace is decision-critical rather than a minor optimization detail.
+
+### 3. Prefill has a separate, potentially larger I/O bill
+
+streamlx's README and `examples/serve.py` describe expert-major prefill sweeps: when a chunk routes more experts than the pool can hold, each unique needed expert is streamed once through a throwaway buffer; the implementation notes that a chunk's sweep reads roughly every expert. This differs from the per-token decode cold-miss calculation.
+
+For Qwen 122B, the shape-derived total routed-expert tensor set is about 60.75 GiB. A 2,048-token prefill chunk makes 16,384 top-k selections per MoE layer (2,048 × 8). If that chunk touches nearly all 256 experts in each of 48 layers, its expert-sweep read volume approaches 60.75 GiB, or about 74.5 seconds at the measured TS900 sequential-read rate before compute overlap. A 4,096-token prompt processed as two such chunks could approach twice that volume. These are upper/near-full-coverage envelopes, not measured prompt latency; actual unique experts per chunk depend on the model's routing distribution. Prompt caching can reduce repeated-prefix work on later turns, but it does not remove the first prefill cost.
+
+### 4. Published streamlx performance is a warning, not a transferable guarantee
+
+At the streamlx README's reported test condition — M4 MacBook Air, 32 GB unified memory, approximately 2.4 GB/s SSD, batch-1 greedy decode — the author reports:
+- Laguna-S-2.1 117B, 2-bit, 8 GiB expert budget: 25.9% miss rate and 3.4 tok/s; at 16 GiB budget: 7.6% miss rate and 7.2 tok/s.
+- Qwen3.6-35B-A3B, 4-bit, 8 GiB budget: 8.3% miss rate and 7.2 tok/s; at 16 GiB budget: 3.6% miss rate and 15.9 tok/s (19.0 tok/s with warm-start).
+
+These are author-reported measurements on a 32 GB Mac and a drive roughly 2.7× faster than the PACS TS900 sequential-read result. They are not measurements of Qwen3.5-122B, not 16 GB results, and not a prediction for PACS. They demonstrate that expert budget and model-specific route locality materially affect throughput.
+
+### 5. Power/thermal caution in the inspected runtime
+
+In the inspected streamlx source, GPU keepalive is enabled by default. The pool implementation contains a GPU-hold mechanism that periodically submits matrix multiplications to keep the Apple GPU at a higher performance state when decode routing synchronization would otherwise leave it idle. This is a performance tactic, not a thermal-safety feature. For any later first correctness/memory test, keepalive should remain disabled; thermal and power acceptance still requires separate host measurements and stop conditions. No power or temperature failure has been observed because no such PACS run has occurred.
+
+### 6. Revised model-selection decision
+
+- **Qwen3.5-122B-A10B: do not select as the first PACS deployment model and do not download yet.** Retain it as a research candidate. Its 10B active label and static memory arithmetic do not offset the presently unbounded cache-miss, prefill-I/O, exact-adapter and thermal risks.
+- **Kimi Linear 48B-A3B: move ahead as the first source-level MoE pilot candidate**, not as an already-approved deployment. It has a much smaller estimated per-layer top-k pool floor (~0.77 GiB versus ~1.90 GiB), fewer MoE layers (26 versus 48), more cache slots per layer at the same total pool budget, and an explicitly listed streamlx family/layout. Its text-only nature means screenshot understanding remains a separate sequential vision-helper task; do not co-reside Kimi and Qwen3.5-4B.
+- **Qwen3.6-35B-A3B: retain as a benchmark/control candidate.** streamlx reports a 32 GB M4 test, but that result cannot be transferred to 16 GB. It is useful as a lower-active-parameter comparison if its exact checkpoint and memory envelope are audited.
+- The project may continue exploring 8–10B active models, but any candidate must pass cache locality, prefill I/O, whole-host memory, exact runtime adapter and thermal preflight. Do not optimize for total parameter count alone.
+
+**Decision:** the 122B-A10B is not worth choosing as the first daily-use model under the current evidence. This is a deployment-priority decision, not a claim that the architecture cannot run on Apple Silicon. No checkpoint was downloaded, no runtime installed or executed, and no production configuration changed.
+
 ## 10. G6 status
 
 | Gate | Status | Evidence |
 |---|---|---|
 | G6.1 Runtime source audit | COMPLETE | Source, package metadata, architecture, cache, memory and I/O paths inspected |
 | G6.2 Exact checkpoint compatibility | PARTIAL / SOURCE-LEVEL | Kimi checkpoint revision and public config/expert-key family identified; exact pinned index byte accounting and shell tensor total remain pending |
-| G6.3 16 GiB memory envelope | PARTIAL / SHAPE-DERIVED | Qwen 122B: shell residual ~4.07 GiB, minimum top-k pool ~1.90 GiB, 4K KV ~96 MiB, recurrent state ~144 MiB; 2–3 GiB pilot cache leaves ~2.7–3.7 GiB for scratch/runtime after 5 GiB reserve; exact index and measured peak pending |
+| G6.3 16 GiB memory envelope | PARTIAL / STATIC ONLY | Qwen 122B shell/pool/state arithmetic estimated; per-layer slot allocation, cache locality thought experiment and prefill sweep I/O envelope audited; exact index, representative route trace, measured peak and thermal data remain absent; 122B not selected for first deployment |
 | G6.4 TS900 runtime-level I/O overlap | NOT TESTED | Only generic SSD benchmark exists |
 | G6-Safety static power/thermal envelope | PARTIAL / SOURCE-BASED | Apple specifications and third-party stress review; no PACS workload measurement |
 | G6-Context prompt/KDA/MLA accounting | PARTIAL / SOURCE-BASED | Kimi config and streamlx cache code inspected; no local runtime measurement |
