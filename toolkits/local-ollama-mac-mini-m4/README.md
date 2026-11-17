@@ -1,13 +1,15 @@
 # Mac mini M4 本地模型部署工具包
 
 **版本：** 0.1.0  
-**状态：** IN PROGRESS — G0 PASS / G1 INSTALLED / G2 APPLIED / G2.1 COPY VERIFIED / G3 FUNCTIONAL PASS / G4 BASELINE CAPTURED (DSH CO-RESIDENCY NOT TESTED) / G5 NOT TESTED  
+**状态：** IN PROGRESS — G0 PASS / G1 INSTALLED / G2 APPLIED / G2.1 COPY VERIFIED / G3 FUNCTIONAL PASS / G4 BASELINE CAPTURED (DSH CO-RESIDENCY NOT TESTED) / G5 PRECHECK PASS (BENCHMARK NOT RUN)  
 **主机：** Apple Silicon M4，16 GiB 统一内存  
 **运行时：** Ollama macOS 应用  
 **已部署基线模型：** qwen3.5:4b（本机 API 元数据报告 NVFP4 / MLX）  
 **后续接入：** DeepSeek Harness MCP stdio bridge（本工具包不启用）
 
 **最新验收更新（2026-11-17）：** G3 已按功能验收 PASS：Ollama 子进程使用 `/Volumes/SSD/AI-Workspace/models`，`OLLAMA_NO_CLOUD=1`，Qwen3.5-4B 已完成实际推理。内置模型副本保留。G4 已采集冷加载、真正驻留热推理及 Runner VM Map：热推理 `load_duration=0.0049s`、`eval_count=946`、`eval_duration=34.0299s`、约 `27.80 tokens/s`；Runner `Physical footprint (peak)=4.3 GiB`，其中 IOAccelerator graphics resident 3.8 GiB。热推理后系统 free 37%、Swap 1490.62 MB（未增加）。这些数据是本配置的实测基线，不能按参数量线性外推 MoE；DSH 与模型共驻留的资源安全对照尚未测试。下一步转 G5：TS900 非破坏性顺序读写测试。完整记录见 [4B Runtime Baseline](reports/4b-runtime-baseline-2026-11-17.md)。
+
+**G5 预检（2026-11-17）：** `/Volumes/SSD` 已确认挂载为外置 USB APFS SSD，标称 1TB、可用约 946GiB；`dd` 与 `iostat` 可用，`fio` 未安装；USB 路径未提供 SMART 状态。预检期间未写入或删除文件。顺序与随机读取基准尚未运行，详细预检记录见 [TS900 SSD Benchmark](reports/ts900-ssd-benchmark-2026-11-17.md)。
 
 ## 范围
 
