@@ -202,6 +202,16 @@ streamlx 还有一个需注意的默认行为：`STREAMLX_KEEPALIVE` 默认开�
 
 详见 [G6 Runtime Compatibility Audit / G6-Context](research/g6-runtime-compatibility-audit-2026-11-17.md)。
 
+### G6.3 — Qwen3.5-122B-A10B 16GB 静态内存核算（2026-11-17）
+
+**结论：有条件可行，未通过本机验收。** 以 4-bit affine / group64、48 层、top-8、每专家 3 个 3072×1024 矩阵估算：每专家约 5.0625 MiB；全体 routed experts 约 60.75 GiB；每层 top-8 的最低专家池约 1.90 GiB。模型仓库显示总 checkpoint 69.6 GB，扣除估算 routed experts 后，non-routed shell 余量约 4.07 GiB（估算，不是 index 精确解析）。
+
+4K KV 约 96 MiB，linear recurrent state 形状估算约 144 MiB。按 PACS 暂定 5 GiB 非模型预留，2 GiB 专家池时 runtime/scratch 尚有约 4.8 GiB 余量；3 GiB 专家池时约 3.7 GiB。**首轮只允许 4K、并发 1、文本任务、专家池 2.0–2.5 GiB、无 MTP/draft、无同时运行 4B Runner、无 GUI/视觉并发。** streamlx 默认 8 GiB expert budget 不适合这台 16 GiB 主机，必须显式下调。
+
+这只说明内存账面上有机会，不代表精确 checkpoint 已兼容、实际峰值已通过或速度/热表现可接受。精确 Safetensors index/header、lazy shell load、实际 MLX/Metal peak、TS900 I/O overlap、热状态仍待验收。未下载模型、未安装 Runtime、未运行大模型、未修改生产配置。
+
+详见 [G6 Runtime Compatibility Audit / G6.3 Qwen 122B memory envelope](research/g6-runtime-compatibility-audit-2026-11-17.md#7g-g63--qwen35-122b-a10b-16-gib-static-memory-envelope-calculation-2026-11-17)。
+
 ### G6-Vision & App Integration — 截图理解与 Office 工作流
 
 - Qwen3.5-122B-A10B 的模型本身有 Vision Encoder，MLX 4-bit 模型卡提供 mlx-vlm 图像输入示例；Mistral Small 4 也支持图像输入。Kimi Linear 48B-A3B 是 text-generation/text-only checkpoint。
