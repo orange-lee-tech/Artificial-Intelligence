@@ -550,6 +550,80 @@ For the first 16GB pilot, keep one request/concurrency 1, short context, one mod
 - PACS TS900 benchmark: ../reports/ts900-ssd-benchmark-2026-11-17.md
 - PACS 4B baseline: ../reports/4b-runtime-baseline-2026-11-17.md
 
+## 7D. G6-Safety — 16GB memory, power, thermal and SSD risk gate (2026-11-17)
+
+This is a source-based preflight, not a host stress test. No model weights were downloaded or executed for this assessment.
+
+### Hardware facts and limits
+
+Target host: 2024 Mac mini M4, 16GB unified memory, 10-core GPU, 120GB/s published memory bandwidth. Apple's published power table for the 16GB M4 Mac mini lists 4W idle and 65W maximum power consumption, with 222 BTU/h maximum thermal output. Apple lists 10–35°C as the operating ambient-temperature range. These are product-level specifications, not a prediction of a particular MLX workload's power draw.
+
+Third-party Notebookcheck combined CPU/GPU stress testing reported approximately 62.5W initial system draw, 57–58W sustained system draw, SoC temperature around 102°C, and automatic fan speed around 2,950 RPM. This is not an LLM test and cannot be used as a direct temperature forecast. It does demonstrate that internal SoC temperature can be much higher than enclosure surface temperature and that the fan becomes audible under sustained stress.
+
+Apple's ProcessInfo thermal states:
+- nominal: within normal limits;
+- fair: slightly elevated; system may run fans and defer background work;
+- serious: high; system reduces performance and fans run at maximum;
+- critical: significantly affecting performance; system needs to cool.
+Apple's powermetrics documentation says power readings are estimates and thermal readings are instantaneous snapshots, not a continuous guarantee.
+
+### Why 10B active is not a thermal or memory verdict
+
+Active parameter count does not directly specify:
+- resident unified-memory footprint;
+- amount of SSD data read per token;
+- GPU utilization or sustained power;
+- thermal equilibrium or fan curve.
+
+The relevant runtime memory budget remains:
+OS + DSH + model shell + expert pool + KV/recurrent state + prefill/decode scratch + MLX/Metal/runtime buffers.
+
+The existing Qwen3.5-4B warm-run baseline and TS900 throughput benchmark are useful reference points, but neither measures the target MoE runtime's sustained power, temperature or DSH co-residency.
+
+### Shape-derived cold expert-read envelope (not a throughput prediction)
+
+Using the already documented 4-bit group-64 expert bundle estimates:
+- Kimi Linear: 26 MoE layers × top-8 = 208 selected expert bundles/token. At approximately 3,981,312 bytes/bundle, a full cold miss of all selected routed experts is about 0.77 GiB/token.
+- Qwen3.5-122B: 48 MoE layers × top-8 = 384 selected expert bundles/token. At approximately 5,308,416 bytes/bundle, a full cold miss is about 1.90 GiB/token.
+
+At the PACS TS900 non-zero sequential uncached-read reference of 834.7 MiB/s, the serialized read-time equivalents are approximately:
+- Kimi: 0.95 seconds for a full selected-expert cold miss.
+- Qwen 122B: 2.33 seconds for a full selected-expert cold miss.
+
+These are intentionally conservative cold-miss transfer equivalents, not measured per-token latency. They assume every selected routed expert is absent from cache and ignore I/O/compute overlap, request merging, asynchronous prefetch and any reuse. Real performance depends heavily on cache hit rate and route locality. They do not include shell/attention/KV/scratch traffic. The TS900 benchmark did not measure SSD temperature; its SMART status was reported unsupported, so SSD thermal behavior remains unknown.
+
+The 120GB/s unified-memory bandwidth specification and 834.7 MiB/s TS900 read result describe different subsystems and workload conditions; they must not be treated as directly interchangeable. They do illustrate why expert streaming must maximize cache reuse and overlap rather than repeatedly cold-reading every selected expert.
+
+### Static safety envelope and decision rules
+
+Before any large checkpoint download or execution, require all of the following from metadata/source analysis:
+1. Exact pinned Safetensors index and shard-header parse; calculate all expert bundles, shell tensors and non-expert bytes. No file-size-only inference.
+2. Account separately for resident shell, minimum top-k slot floor, proposed cache budget, K/V or recurrent state at 4K and 8K, prefill scratch, MLX/Metal buffers and runtime overhead.
+3. Keep at least 4 GiB as a provisional system reserve for macOS + DSH + background services. This is a PACS engineering policy, not an Apple specification. If DSH baseline use requires more, raise the reserve. Therefore the model-side envelope must not exceed 12 GiB under this provisional policy.
+4. Reject any candidate whose documented or conservatively estimated peak exceeds the model-side envelope, relies on sustained swap, or has an unbounded cache/prefetch path.
+5. For the first eventual controlled serving profile: one model slot, concurrency 1, short context (start 4K), no MTP/draft, bounded expert cache and prefetch, no simultaneous 4B runner, no DSH concurrency claim until static memory accounting supports it.
+6. Treat thermal state as a hard runtime control: Fair reduces speculative prefetch/background work; Serious stops admission of new inference jobs and drains/unloads the current model; Critical aborts inference and cools down. A persistent Serious state is a candidate rejection for unattended sustained service.
+7. Do not assign a numeric watts or SoC-temperature safety threshold without a validated device sensor and workload basis. Apple product maximum power is a system specification, not a per-model budget. powermetrics power values are estimates; thermal-state samples are instantaneous.
+8. Treat external TS900 SSD temperature as unverified. Do not assume the generic read benchmark establishes sustained thermal suitability.
+
+### Model-specific preflight interpretation
+
+- **Kimi Linear 48B-A3B:** lower cold expert-read floor (~0.77 GiB/token) and lower top-k slot floor (~0.77 GiB) than Qwen 122B; streamlx lists kimi_linear. This makes Kimi the preferred first static feasibility candidate, not yet approved for execution. Exact shell, attention state, cache and total memory remain unparsed.
+- **Qwen3.5-122B-A10B:** 10B active remains a research target, not an accepted 16GB deployment. The 4-bit checkpoint's 69.6GB disk size and active-parameter label do not prove feasibility. The standard MLX+streamlx shell accounting and expert pool must fit the 12GiB provisional model envelope with reserve. TurboQuant's third-party 11.3GB reported peak at 8GB cache is not a PACS result and has not established safe DSH co-residency or thermal equilibrium.
+- **Mistral Small 4:** remains P1 for architecture/quality and adapter audit; thermal safety cannot be inferred from 6.5B active. It needs the same full accounting and a validated mistral4 runtime path.
+
+### G6-Safety evidence sources
+
+- Apple Mac mini M4 power and thermal output: https://support.apple.com/en-sg/103253
+- Apple Mac mini M4 technical specifications and operating environment: https://support.apple.com/en-sg/121555
+- Apple ProcessInfo thermal-state definitions: https://developer.apple.com/documentation/foundation/processinfo/thermalstate-swift.enum
+- Apple powermetrics manual (estimated power and instantaneous thermal sample): https://manp.gs/mac/1/powermetrics
+- Notebookcheck M4 Mac mini sustained combined-load review: https://www.notebookcheck.net/Apple-Mac-Mini-M4-review-Smaller-faster-and-louder.918832.0.html
+- PACS TS900 non-zero benchmark: ../reports/ts900-ssd-benchmark-2026-11-17.md
+- PACS 4B warm inference baseline: ../reports/4b-runtime-baseline-2026-11-17.md
+
+**Conclusion:** 10B active is neither automatically safe nor automatically unsafe. Under the current no-download/no-execution constraint, only static feasibility can be assessed. Qwen 122B remains conditional until exact shell/cache/state accounting passes the 12GiB provisional model envelope. Kimi is the lower-risk first static candidate. No model is certified for sustained power/thermal behavior without a future separately approved, bounded validation; no such validation is requested or performed in this phase.
+
 ## 10. G6 status
 
 | Gate | Status | Evidence |
@@ -558,6 +632,7 @@ For the first 16GB pilot, keep one request/concurrency 1, short context, one mod
 | G6.2 Exact checkpoint compatibility | NOT TESTED | No exact 48B–50B checkpoint selected or downloaded |
 | G6.3 16 GiB memory envelope | NOT TESTED | No target runtime executed on this host |
 | G6.4 TS900 runtime-level I/O overlap | NOT TESTED | Only generic SSD benchmark exists |
+| G6-Safety static power/thermal envelope | PARTIAL / SOURCE-BASED | Apple specifications and third-party stress review; no PACS workload measurement |
 | Runtime installation | NOT AUTHORIZED IN THIS PHASE | No installation performed |
 | Large model download | NOT AUTHORIZED IN THIS PHASE | No model downloaded |
 | Ollama / DSH production configuration | UNCHANGED | No production configuration modified |
