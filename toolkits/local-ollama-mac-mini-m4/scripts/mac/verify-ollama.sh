@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-API_URL="$OLLAMA_BASE_URL"
-if [[ -z "$API_URL" ]]; then API_URL="http://127.0.0.1:11434"; fi
+API_URL="${OLLAMA_BASE_URL:-http://127.0.0.1:11434}"
 case "$API_URL" in
   http://127.0.0.1:11434|http://localhost:11434) ;;
   *) printf '[BLOCKED] API URL must be loopback-only: %s\n' "$API_URL"; exit 2 ;;
@@ -29,5 +28,5 @@ else
   printf '[WARN] lsof unavailable; bind address not independently checked.\n'
 fi
 NO_CLOUD="$(launchctl getenv OLLAMA_NO_CLOUD 2>/dev/null || true)"
-[[ "$NO_CLOUD" == "1" ]] && printf '[PASS] OLLAMA_NO_CLOUD=1\n' || printf '[WARN] OLLAMA_NO_CLOUD is not 1.\n'
+if [[ "$NO_CLOUD" == "1" ]]; then printf '[PASS] OLLAMA_NO_CLOUD=1\n'; else printf '[WARN] OLLAMA_NO_CLOUD is not 1.\n'; fi
 printf '\n[PASS] Local API responded. No model inference or external request was made.\n'
