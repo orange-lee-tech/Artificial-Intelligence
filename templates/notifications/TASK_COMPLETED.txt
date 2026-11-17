@@ -1,0 +1,7 @@
+【{{source_label}}｜任务完成】
+任务：{{task_name}}
+耗时：{{duration}}
+产物：{{artifact_name}}
+验收：{{verification_status}}
+云端费用：{{cloud_cost}}
+备注：{{summary}}
