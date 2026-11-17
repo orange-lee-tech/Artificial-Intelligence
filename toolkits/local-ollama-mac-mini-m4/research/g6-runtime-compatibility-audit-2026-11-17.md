@@ -599,7 +599,7 @@ The 120GB/s unified-memory bandwidth specification and 834.7 MiB/s TS900 read re
 Before any large checkpoint download or execution, require all of the following from metadata/source analysis:
 1. Exact pinned Safetensors index and shard-header parse; calculate all expert bundles, shell tensors and non-expert bytes. No file-size-only inference.
 2. Account separately for resident shell, minimum top-k slot floor, proposed cache budget, K/V or recurrent state at 4K and 8K, prefill scratch, MLX/Metal buffers and runtime overhead.
-3. Keep at least 4 GiB as a provisional system reserve for macOS + DSH + background services. This is a PACS engineering policy, not an Apple specification. If DSH baseline use requires more, raise the reserve. Therefore the model-side envelope must not exceed 12 GiB under this provisional policy.
+3. Keep at least 5 GiB as a provisional system reserve for macOS + DSH + background services. This is a PACS engineering policy, not an Apple specification. It is deliberately conservative and informed by the existing 4B runner's 4.3 GiB process peak; the 4B baseline did not test DSH co-residency, so if DSH baseline use requires more, raise the reserve. Therefore the model-side envelope must not exceed 11 GiB under this provisional policy.
 4. Reject any candidate whose documented or conservatively estimated peak exceeds the model-side envelope, relies on sustained swap, or has an unbounded cache/prefetch path.
 5. For the first eventual controlled serving profile: one model slot, concurrency 1, short context (start 4K), no MTP/draft, bounded expert cache and prefetch, no simultaneous 4B runner, no DSH concurrency claim until static memory accounting supports it.
 6. Treat thermal state as a hard runtime control: Fair reduces speculative prefetch/background work; Serious stops admission of new inference jobs and drains/unloads the current model; Critical aborts inference and cools down. A persistent Serious state is a candidate rejection for unattended sustained service.
@@ -609,7 +609,7 @@ Before any large checkpoint download or execution, require all of the following 
 ### Model-specific preflight interpretation
 
 - **Kimi Linear 48B-A3B:** lower cold expert-read floor (~0.77 GiB/token) and lower top-k slot floor (~0.77 GiB) than Qwen 122B; streamlx lists kimi_linear. This makes Kimi the preferred first static feasibility candidate, not yet approved for execution. Exact shell, attention state, cache and total memory remain unparsed.
-- **Qwen3.5-122B-A10B:** 10B active remains a research target, not an accepted 16GB deployment. The 4-bit checkpoint's 69.6GB disk size and active-parameter label do not prove feasibility. The standard MLX+streamlx shell accounting and expert pool must fit the 12GiB provisional model envelope with reserve. TurboQuant's third-party 11.3GB reported peak at 8GB cache is not a PACS result and has not established safe DSH co-residency or thermal equilibrium.
+- **Qwen3.5-122B-A10B:** 10B active remains a research target, not an accepted 16GB deployment. The 4-bit checkpoint's 69.6GB disk size and active-parameter label do not prove feasibility. The standard MLX+streamlx shell accounting and expert pool must fit the 11GiB provisional model envelope with reserve. TurboQuant's third-party 11.3GB reported peak at 8GB cache is not a PACS result and has not established safe DSH co-residency or thermal equilibrium.
 - **Mistral Small 4:** remains P1 for architecture/quality and adapter audit; thermal safety cannot be inferred from 6.5B active. It needs the same full accounting and a validated mistral4 runtime path.
 
 ### G6-Safety evidence sources
@@ -622,7 +622,7 @@ Before any large checkpoint download or execution, require all of the following 
 - PACS TS900 non-zero benchmark: ../reports/ts900-ssd-benchmark-2026-11-17.md
 - PACS 4B warm inference baseline: ../reports/4b-runtime-baseline-2026-11-17.md
 
-**Conclusion:** 10B active is neither automatically safe nor automatically unsafe. Under the current no-download/no-execution constraint, only static feasibility can be assessed. Qwen 122B remains conditional until exact shell/cache/state accounting passes the 12GiB provisional model envelope. Kimi is the lower-risk first static candidate. No model is certified for sustained power/thermal behavior without a future separately approved, bounded validation; no such validation is requested or performed in this phase.
+**Conclusion:** 10B active is neither automatically safe nor automatically unsafe. Under the current no-download/no-execution constraint, only static feasibility can be assessed. Qwen 122B remains conditional until exact shell/cache/state accounting passes the 11GiB provisional model envelope. Kimi is the lower-risk first static candidate. No model is certified for sustained power/thermal behavior without a future separately approved, bounded validation; no such validation is requested or performed in this phase.
 
 ## 10. G6 status
 
