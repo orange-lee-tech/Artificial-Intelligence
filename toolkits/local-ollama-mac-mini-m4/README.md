@@ -184,7 +184,7 @@ streamlx 还有一个需注意的默认行为：`STREAMLX_KEEPALIVE` 默认开�
 - Notebookcheck 的 CPU+GPU 压力测试曾测得约 57–58W 持续整机功耗、SoC 约 102°C、风扇约 2,950 RPM；不是 PACS LLM 实测，不能外推为目标模型温度。
 - Apple Thermal State：Fair 降低预取/后台负载；Serious 停止接收新任务并卸载模型；Critical 中止推理并冷却。powermetrics 的功耗是估算，热状态读数是瞬时采样。
 - 形状推算的完整 routed-expert cold miss：Kimi 约 0.77 GiB/token，Qwen 122B 约 1.90 GiB/token；按 TS900 834.7 MiB/s 顺序读取参考，对应约 0.95s / 2.33s 的串行读取时间等价。不是实际 token latency，缓存命中、预取、I/O 合并和计算重叠会显著改变结果。
-- PACS 暂定至少保留 4 GiB 给 macOS + DSH + 后台服务；这是项目保守策略，不是 Apple 规格。模型侧 shell+expert cache+state+scratch+runtime 合计不得超过 12 GiB；若 DSH 基线需要更多，则进一步缩小模型预算。
+- PACS 暂定至少保留 5 GiB 给 macOS + DSH + 后台服务；这是项目保守策略，不是 Apple 规格，并参考现有 4B Runner 约 4.3 GiB 的 process peak 设置。现有 4B 基线尚未验证 DSH 共存，因此若 DSH 基线需要更多，继续提高 reserve。模型侧 shell+expert cache+state+scratch+runtime 合计不得超过 11 GiB。
 - 首个候选仅做静态可行性分析；单模型槽、并发 1、4K 起步、无 MTP/draft、有限缓存/预取。未完成内存、热和 SSD 温度证据前，不宣称适合无人值守持续服务。
 
 详细推导与限制见 [G6 Runtime Compatibility Audit](research/g6-runtime-compatibility-audit-2026-11-17.md#7d-g6-safety--16gb-memory-power-thermal-and-ssd-risk-gate-2026-11-17)。
