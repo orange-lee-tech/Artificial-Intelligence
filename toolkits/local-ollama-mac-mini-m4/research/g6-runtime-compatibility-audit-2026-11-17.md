@@ -141,7 +141,7 @@ This is a performance policy, not free overlap. It can add GPU activity, power d
 
 The reader sets `F_NOCACHE` and `F_RDAHEAD` when opening files, but catches and ignores errors from those fcntl calls. Its source comment also notes that on macOS 26.3 the page cache may still be populated despite the stated `F_NOCACHE` intent. Our host is macOS 26.2, so actual cache behavior must be measured on-device. Do not equate the flag being requested with proof that every read reaches the physical SSD.
 
-### 3.5 Maintenance, license, dependencies
+### 3.6 Maintenance, license, dependencies
 
 **SOURCE_VERIFIED**
 
