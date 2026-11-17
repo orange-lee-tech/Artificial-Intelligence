@@ -80,11 +80,11 @@ DeepSeek Harness（Mac mini，本地主控 / local coordinator）
 
 | 模式 / Mode | 工作方式 / How it works | 定位 / Role |
 |---|---|---|
-| 云端主动委派本地 / Cloud-initiated local delegation | 云端模型发出 local_model_infer 调用；本地 Harness 执行并回传。 / The cloud model calls local_model_infer; the local Harness executes and returns the result. | 本设计的首要目标；保留云端复杂推理能力，同时把适合的子任务交给本地模型。 / Primary target of this design; retains cloud reasoning while delegating suitable subtasks locally. |
-| 本地优先路由 / Local-first routing | 本地规则或小模型先处理已验证的常规任务；只有超出能力边界时才调用云端。 / Local rules or the small model handle validated routine tasks first; cloud is invoked only when the task exceeds local capability. | 后续成本优化方向；须在云端委派链路和本地模型质量验证后再评估。 / A later cost-optimization option; evaluate only after validating cloud delegation and local model quality. |
+| 云端主动委派本地 / Cloud-initiated local delegation | 云端模型发出 local_model_infer 调用；本地 Harness 执行并回传。 / The cloud model calls local_model_infer; the local Harness executes and returns the result. | **首个兼容性集成路径：** 保留云端复杂推理，将有界子任务交给本地模型；父级云端请求仍会产生费用。 / **Initial compatibility path:** retain cloud reasoning and delegate bounded subtasks locally; the parent cloud request still incurs cost. |
+| 本地优先路由 / Local-first routing | 在首次云端请求前，由本地规则或小模型处理已验收的常规任务；不适用时再按策略考虑云端。 / Before the first cloud request, local rules or the small model handle validated routine tasks; otherwise cloud is considered only under policy. | **目标成本优化路径：** 必须先验证 pre-provider hook 或 PACS 任务入口，并完成预算硬锁；不能仅靠注册 MCP 工具实现。 / **Target cost-optimization path:** requires a verified pre-provider hook or PACS task ingress and a complete budget guard; registering an MCP tool alone is insufficient. |
 
-**不得混淆：** 云端主动委派可以减少特定子任务的云端工作量，但每次云端 API 会话仍可能产生费用。本地优先路由才有机会完全避免一部分常规任务的云端调用。两种模式可以共存，但不应在第一阶段同时引入复杂路由。  
-**Do not conflate the modes:** Cloud-initiated delegation can reduce cloud work for selected subtasks, but the cloud API session may still incur fees. Local-first routing can avoid cloud calls entirely for some routine tasks. Both modes may coexist, but they should not be introduced as a complex combined router in the first phase.
+**不得混淆：** 云端主动委派发生在云端请求之后，可能减少后续子任务的云端处理量，但不能避免父级请求费用。本地优先必须发生在首次付费云端请求之前。两种模式可共存，但应分阶段启用：先验证本地模型与 MCP 委派，再审计并实现安全的 pre-cloud 路由入口。  
+**Do not conflate the modes:** Cloud-initiated delegation happens after a cloud request and may reduce subsequent cloud work, but it cannot avoid the parent request cost. Local-first must happen before the first paid cloud request. Both modes can coexist, but should be enabled in stages: validate local inference and MCP delegation first, then audit and implement a safe pre-cloud routing entry point.
 
 
 **模型适配与路由补充 / Adapter and router clarification:** 详细的 Model Adapter 与 Adaptive Router 契约见 [PACS Model Adapter & Adaptive Router Specification](deployments/deepseek-harness-mac-mini-m4/MODEL-ADAPTER-AND-ADAPTIVE-ROUTER-SPEC.md)。必须区分云端发起的 MCP 本地委派与首次付费请求之前的 local-first 路由；后者需要经审计确认的 pre-provider 入口，或由 PACS 任务入口实现。MCP 工具注册本身不等于 local-first。
