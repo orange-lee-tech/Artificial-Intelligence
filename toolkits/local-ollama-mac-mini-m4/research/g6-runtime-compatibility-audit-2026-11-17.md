@@ -718,6 +718,20 @@ Initial policy proposal:
 
 The 5 GiB non-model reserve is a provisional floor, not a fixed measurement. The 11 GiB model-side ceiling applies only when the non-model reserve is actually respected; if browser/IDE/vision/other applications consume more, reduce the model-side budget by the same amount. Do not allocate 11 GiB to the model and then treat GUI apps as free.
 
+### G6-Context evidence sources
+
+- Kimi Linear official model card (architecture, 1M context claim, hybrid KDA/MLA): https://huggingface.co/moonshotai/Kimi-Linear-48B-A3B-Instruct
+- Kimi Linear official config (pinned architecture fields: KDA/MLA layers, KV LoRA rank, RoPE key dimension): https://huggingface.co/moonshotai/Kimi-Linear-48B-A3B-Instruct/blob/main/config.json
+- Kimi Linear architecture paper: https://arxiv.org/abs/2510.26692
+- Kimi 4-bit MLX checkpoint revision used by PACS: https://huggingface.co/mlx-community/Kimi-Linear-48B-A3B-Instruct-4bit/tree/919175d75427f1c10cfc17e7254b53295edddf72
+- streamlx prompt-cache, KV-cache and prefill options: https://github.com/srcterm/streamlx/blob/main/README.md
+- streamlx sequential server memory/prompt-cache handling: https://github.com/srcterm/streamlx/blob/main/examples/serve.py
+- streamlx segmented disk prompt-cache and recurrent-state boundary behavior: https://github.com/srcterm/streamlx/blob/main/streamlx/kvcache.py
+- MLX-LM long-prompt, rotating KV cache and prompt-cache features: https://github.com/ml-explore/mlx-lm
+- Apple WWDC25 MLX KV-cache reuse explanation: https://developer.apple.com/videos/play/wwdc2025/298/
+- Qwen3.5-4B official model card (vision encoder): https://huggingface.co/Qwen/Qwen3.5-4B
+- PACS measured 4B runner baseline: ../reports/4b-runtime-baseline-2026-11-17.md
+
 ### G6-Context status
 
 | Item | Status |
