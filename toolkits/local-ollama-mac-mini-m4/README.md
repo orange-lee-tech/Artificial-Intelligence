@@ -1,7 +1,7 @@
 # Mac mini M4 本地模型部署工具包
 
 **版本：** 0.1.0  
-**状态：** IN PROGRESS — G0 PASS / G1 INSTALLED / G2 APPLIED / G2.1 MODEL-STORE MIGRATION PENDING / G3–G5 NOT TESTED  
+**状态：** IN PROGRESS — G0 PASS / G1 INSTALLED / G2 APPLIED / G2.1 COPY VERIFIED / G3 FAIL (SERVER USES DEFAULT PATH) / G4–G5 NOT TESTED  
 **主机：** Apple Silicon M4，16 GiB 统一内存  
 **运行时：** Ollama macOS 应用  
 **首选模型候选：** qwen3.5:4b-q4_K_M  
@@ -83,7 +83,7 @@ bash scripts/mac/migrate-default-model-store.sh --apply
 
 迁移脚本默认 dry-run。apply 需要在 Terminal 输入 `COPY`；它只将默认模型目录复制到外置目录，逐文件比较验证，**保留原目录，不删除、不覆盖目标已有文件、不重启 Ollama**。复制通过后再启动 Ollama，确认 `ollama list` 能看到模型且外置目录有实际数据。只有完成验证并另行确认后，才考虑清理原目录。
 
-**本机执行记录（2026-11-17）：** 当前 `ollama list` 显示 `qwen3.5:4b`（4.0 GB，ID 前缀 `7f3251fa6878`）；默认目录约 3.8 GB，外置目标目录为 0 B。launchd 三个环境变量值正确，API 监听为 `127.0.0.1:11434`。推断旧 Ollama server 未在 G2 后完全退出并重新启动；进程实际读取的模型目录尚未切换。迁移与重启验证待执行。
+**本机执行记录（2026-11-17）：** `migrate-default-model-store.sh --apply` 已复制 `~/.ollama/models` 到外置目标目录；735 个文件逐文件比较通过，源目录保留。复制前后约 3.8G / 3.7G（du 显示值取整）。重新启动后 `ollama list` 仍识别 `qwen3.5:4b`；外置目录约 3.7G，内置源目录约 3.8G。launchd 环境正确，但监听服务进程环境仍报告 `OLLAMA_MODELS=/Users/liyucheng/.ollama/models`，因此 G3 **FAIL / NOT ACCEPTED**：模型服务仍可能使用内置目录。API 正常，监听仅 `127.0.0.1:11434`，服务进程可见 `OLLAMA_NO_CLOUD=1`。下一步先只读检查 Ollama.app parent、server child、launchd job 和 app settings，再修复实际运行环境。
 
 回滚：
 ~~~bash
@@ -117,6 +117,12 @@ node scripts/mac/benchmark.mjs
 ~~~
 
 只测本机延迟、token 数和生成速度，不判定语义质量。质量验收仍需使用 PACS LM01–LM06。
+
+## MoE / SSD Streaming 研究
+
+已完成只读可行性评估，结论与实施门槛见 [MoE 专家按需加载与 SSD Streaming 可行性评估](research/moe-ssd-streaming-assessment-2026-11-17.md)。
+
+关键结论：当前 `qwen3.5:4b` 是 dense 4B，不是 MoE；MoE 专家 SSD streaming 是独立的实验推理运行时，不是当前 Ollama 默认能力。先修复 G3，再在隔离环境审计并试跑 30B–35B / 约 3B active 的 MoE。暂不下载 100–200GB 模型。
 
 ## 安全边界
 
