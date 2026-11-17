@@ -27,34 +27,51 @@ fi
 if [[ -n "$DEFAULT_FIRST_FILE" && "$OLD_MODELS" != "$MODEL_DIR" ]]; then
   die "Default model directory contains data; refusing to hide or move existing models."
 fi
-[[ ! -e "$BACKUP_FILE" ]] || die "Existing backup found at $BACKUP_FILE; review or roll back first."
+
+REUSE_BACKUP=0
+if [[ -e "$BACKUP_FILE" ]]; then
+  [[ -f "$BACKUP_FILE" ]] || die "Backup path exists but is not a regular file."
+  [[ "$(wc -l < "$BACKUP_FILE" | tr -d ' ')" == "3" ]] || die "Environment backup is malformed; inspect manually."
+  BACKUP_MODELS="$(sed -n '1p' "$BACKUP_FILE")"
+  BACKUP_HOST="$(sed -n '2p' "$BACKUP_FILE")"
+  BACKUP_NO_CLOUD="$(sed -n '3p' "$BACKUP_FILE")"
+  allowed_current() {
+    local current="$1" target="$2" original="$3"
+    [[ -z "$current" || "$current" == "$target" || "$current" == "$original" ]]
+  }
+  allowed_current "$OLD_MODELS" "$MODEL_DIR" "$BACKUP_MODELS" || die "OLLAMA_MODELS changed since the backup; inspect manually."
+  allowed_current "$OLD_HOST" "127.0.0.1:11434" "$BACKUP_HOST" || die "OLLAMA_HOST changed since the backup; inspect manually."
+  allowed_current "$OLD_NO_CLOUD" "1" "$BACKUP_NO_CLOUD" || die "OLLAMA_NO_CLOUD changed since the backup; inspect manually."
+  REUSE_BACKUP=1
+fi
+
 FREE_KB="$(df -Pk "$MODEL_VOLUME" | awk 'NR==2 {print $4}')"
 [[ -n "$FREE_KB" && "$FREE_KB" -ge 10485760 ]] || die "At least 10 GiB free space required."
 printf 'Mode: %s\nVolume: %s\nModel directory: %s\nFree space: %s KiB\n' "$MODE" "$MODEL_VOLUME" "$MODEL_DIR" "$FREE_KB"
 printf 'Will set OLLAMA_MODELS=%s\nOLLAMA_HOST=127.0.0.1:11434\nOLLAMA_NO_CLOUD=1\n' "$MODEL_DIR"
+if [[ "$REUSE_BACKUP" -eq 1 ]]; then
+  printf 'Existing original-environment backup will be preserved: %s\n' "$BACKUP_FILE"
+fi
 if [[ "$MODE" == "dry-run" ]]; then printf '[DRY-RUN] No changes made. Use --apply after review.\n'; exit 0; fi
 [[ -t 0 ]] || die "Interactive confirmation required; run from Terminal."
 read -r -p "Type APPLY to create the directory and change launchd environment: " CONFIRM
 [[ "$CONFIRM" == "APPLY" ]] || die "Cancelled."
 mkdir -p "$STATE_DIR" "$MODEL_DIR"
 umask 077
-if [[ -n "$OLD_MODELS" ]]; then OLD_MODELS_SAVE="$OLD_MODELS"; else OLD_MODELS_SAVE="$UNSET_SENTINEL"; fi
-if [[ -n "$OLD_HOST" ]]; then OLD_HOST_SAVE="$OLD_HOST"; else OLD_HOST_SAVE="$UNSET_SENTINEL"; fi
-if [[ -n "$OLD_NO_CLOUD" ]]; then OLD_NO_CLOUD_SAVE="$OLD_NO_CLOUD"; else OLD_NO_CLOUD_SAVE="$UNSET_SENTINEL"; fi
-{
-  printf '%s\n' "$OLD_MODELS_SAVE"
-  printf '%s\n' "$OLD_HOST_SAVE"
-  printf '%s\n' "$OLD_NO_CLOUD_SAVE"
-} > "$BACKUP_FILE"
-chmod 600 "$BACKUP_FILE"
-restore_value() {
-  local key="$1" value="$2"
-  if [[ "$value" == "$UNSET_SENTINEL" ]]; then launchctl unsetenv "$key"; else launchctl setenv "$key" "$value"; fi
-}
-if ! launchctl setenv OLLAMA_MODELS "$MODEL_DIR" || ! launchctl setenv OLLAMA_HOST "127.0.0.1:11434" || ! launchctl setenv OLLAMA_NO_CLOUD "1"; then
-  restore_value OLLAMA_MODELS "$OLD_MODELS_SAVE" || true
-  restore_value OLLAMA_HOST "$OLD_HOST_SAVE" || true
-  restore_value OLLAMA_NO_CLOUD "$OLD_NO_CLOUD_SAVE" || true
-  die "launchctl update failed; previous values restored where possible. Inspect backup."
+if [[ "$REUSE_BACKUP" -eq 0 ]]; then
+  if [[ -n "$OLD_MODELS" ]]; then OLD_MODELS_SAVE="$OLD_MODELS"; else OLD_MODELS_SAVE="$UNSET_SENTINEL"; fi
+  if [[ -n "$OLD_HOST" ]]; then OLD_HOST_SAVE="$OLD_HOST"; else OLD_HOST_SAVE="$UNSET_SENTINEL"; fi
+  if [[ -n "$OLD_NO_CLOUD" ]]; then OLD_NO_CLOUD_SAVE="$OLD_NO_CLOUD"; else OLD_NO_CLOUD_SAVE="$UNSET_SENTINEL"; fi
+  {
+    printf '%s\n' "$OLD_MODELS_SAVE"
+    printf '%s\n' "$OLD_HOST_SAVE"
+    printf '%s\n' "$OLD_NO_CLOUD_SAVE"
+  } > "$BACKUP_FILE"
+  chmod 600 "$BACKUP_FILE"
 fi
-printf '[APPLIED] Environment updated. Quit and reopen Ollama, then run verify-ollama.sh.\nBackup: %s\n' "$BACKUP_FILE"
+launchctl setenv OLLAMA_MODELS "$MODEL_DIR"
+launchctl setenv OLLAMA_HOST "127.0.0.1:11434"
+launchctl setenv OLLAMA_NO_CLOUD "1"
+printf '[APPLIED] Environment updated. Quit and reopen Ollama, then run verify-ollama.sh.\n'
+printf 'This launchd environment has not been proven to survive logout/reboot; rerun this script after login if the values are absent.\n'
+printf 'Backup: %s\n' "$BACKUP_FILE"
