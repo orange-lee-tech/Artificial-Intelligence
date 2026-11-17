@@ -129,7 +129,15 @@ The memory governor resizes expert pools before requests and between prefill chu
 
 The README's M4 performance table is from an M4 MacBook Air with 32 GB, not our 16 GiB Mac mini. It is not a direct predictor for this host.
 
-### 3.4 Read-cache caveat
+### 3.4 GPU keepalive side effect
+
+**SOURCE_VERIFIED**
+
+In `streamlx/pool.py`, `STREAMLX_KEEPALIVE` defaults to enabled. While waiting for SSD reads, the runtime can submit tiny GPU kernels; a separate GPU-hold mechanism may also run matrix-multiplication work to keep the Apple GPU performance state elevated. The environment variable `STREAMLX_KEEPALIVE=0` disables these mechanisms.
+
+This is a performance policy, not free overlap. It can add GPU activity, power draw, and thermal load. For the first correctness and memory-safety pilot, keep it disabled; only run a controlled enabled/disabled A/B test after the baseline is stable. Do not assume the keepalive improves end-to-end throughput on this Mac mini without measurement.
+
+### 3.5 Read-cache caveat
 
 The reader sets `F_NOCACHE` and `F_RDAHEAD` when opening files, but catches and ignores errors from those fcntl calls. Its source comment also notes that on macOS 26.3 the page cache may still be populated despite the stated `F_NOCACHE` intent. Our host is macOS 26.2, so actual cache behavior must be measured on-device. Do not equate the flag being requested with proof that every read reaches the physical SSD.
 
