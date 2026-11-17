@@ -152,29 +152,29 @@ node scripts/mac/benchmark.mjs
 
 streamlx 还有一个需注意的默认行为：`STREAMLX_KEEPALIVE` 默认开启，会在 I/O 等待时提交 GPU keepalive 工作；首轮正确性/内存基线应先设置 `STREAMLX_KEEPALIVE=0`，稳定后再进行开关 A/B 测试。 详细报告：[G6 Runtime Compatibility Audit](research/g6-runtime-compatibility-audit-2026-11-17.md)。
 
-## G6.2 — 精确模型兼容性与 8–10B 激活参数选型（2026-11-17）
+## G6.2 — 模型选型与 16GB MoE 试验策略（2026-11-17）
 
-**当前首选研究目标：Qwen3.5-122B-A10B（122B 总参数 / 10B 激活参数）。** 这是模型能力优先、探索 8–10B 激活档后的新选择；Kimi Linear 48B-A3B 保留为 3B-active 对照，不再视为唯一主候选。
+**能力目标 P0：Qwen3.5-122B-A10B（122B 总参数 / 10B active）。** 这符合 8–10B active 的研究偏好，但尚未在本机运行；标准 MLX 4-bit checkpoint 约 69.6GB，streamlx 家族匹配较明确，16GB 内存包络和实际吞吐未测试。
 
-- 官方模型卡：<https://huggingface.co/Qwen/Qwen3.5-122B-A10B>
-- 标准 MLX 4-bit checkpoint：<https://huggingface.co/mlx-community/Qwen3.5-122B-A10B-4bit>，69.6 GB / 14 shards。
-- 另有 TurboQuant-MLX 低比特专家版本：<https://huggingface.co/manjunathshiva/Qwen3.5-122B-A10B-tq3a-tqTe-g64>，30.9 GB；这是独立量化和 Runtime 路线，不等同标准 4-bit MLX。
+**下一项本地 MoE pilot 候选：Kimi Linear 48B-A3B。** 48B 总参数 / 3B active，MLX 4-bit checkpoint 27.6GB；27 层中首层 dense、26 层 MoE，每层 top-8/256 routed experts + 1 shared expert；20 KDA linear-attention + 7 MLA 层。streamlx 明确列出 kimi_linear，形状推算最低 expert pool 约 0.77 GiB（非完整模型内存、非实测）。需先完成精确 Safetensors index / shell / state / memory audit。
 
-公开配置：48 层、256 routed experts、每 Token top-8 + 1 shared expert、hidden 3072、expert intermediate 1024；Gated DeltaNet + Gated Attention 混合骨干。上游许可证 Apache-2.0。
+**比较候选 P1：Mistral Small 4。** 119B 总参数 / 6.5B active，36 层、128 routed experts、top-4 + 1 shared expert，expert intermediate 2048；4-bit MLX checkpoint 约 67.8GB，Apache-2.0。它没有被 Qwen 在能力上淘汰：Mistral 统一 instruct、reasoning、coding/agent 与图像输入，并支持 reasoning_effort。Qwen 是 P0 的原因是更符合 8–10B active 目标且 streamlx 的 qwen3_5_moe 路径更明确；Mistral 的 mistral4 MLX expert layout / adapter 尚未验证，应保留 P1，不应标成淘汰。Qwen 与 Mistral 的发布方基准不是同一测试设置，当前不能宣称谁在全部任务上胜出。
 
-**Runtime 路线区分：**
-1. 标准 MLX 4-bit + streamlx：qwen3_5_moe 与 stacked switch_mlp 结构有源码级匹配；但尚未在本机 16GB 上运行。按 48×top-8=384 slots 和 4-bit group64 粗估最低专家池约 1.90 GiB（INFERRED，须用精确 index 验证）。
-2. TurboQuant-MLX：作者公开报告在 16GB M4 mini 上，30.9GB 的 tq3a-tqTe-g64 版本以 8GB expert cache 达到约 2.1 tok/s、82% hit、11.3GB peak。此为第三方报告，不是 PACS 实测；低比特量化质量需单独评估，且 11.3GB 峰值尚未证明可与 DSH 并发安全运行。
+按三矩阵 SwiGLU 形状估算，Qwen 路由专家参数量为 48×8×3×3072×1024 ≈ 3.624B/token；Mistral 为 36×4×3×4096×2048 ≈ 3.624B/token。故 Mistral top-4 并不意味着路由专家计算量减半；专家宽度是 Qwen 的两倍。两者 shape-derived 4-bit group64 expert slot floor 均约 1.9 GiB，须精确索引验证。
 
-次级候选：Mistral Small 4（119B / 6.5B active，Apache-2.0）。它较新且面向通用、推理、编程和 Agent，但 4-bit MLX checkpoint 约 67.8GB，使用定制 mistral4 MLX 实现；没有已验证的 16GB streamlx 路径，暂列 P2。
+**现有 Qwen3.5-4B 不卸载/不删除。** 它是 dense 4B（每 token 使用完整 dense 权重），当前热推理实测约 27.8 tok/s，继续作为快速回退、基准和质量对照。Kimi 的 27.6GB MLX checkpoint 需要 streamlx；不是可直接替换进现有 Ollama 的模型文件。大模型测试时停止/卸载 4B Runner，遵守单模型执行槽。待 Kimi 通过精确 checkpoint、短上下文正确性、内存/Swap、吞吐和 DSH 共存验收后，再决定是否改变默认路由；磁盘空间不是现在删除 4B 的理由。
 
-Kimi 家族审查：目前没有找到 Moonshot 发布的约 70B 总参数、8–10B 激活的 Kimi Linear 同类模型。Kimi-Dev-72B 是基于 Qwen2.5-72B 的 Dense 模型（非稀疏 MoE，代际也较早）；Kimi K2/K3 激活规模远超目标。故不为品牌一致性选旧模型。
+### Top-k 路由语义
 
-**现有 Qwen3.5-4B 保留为本机基准、回退和对照模型，不安装 3B 替代品、不删除 4B 文件。** 大模型试验时只停止其 Runner，遵守单模型执行槽。
+- Kimi：每 token、每个 MoE 层固定选择 8/256 routed experts，另有 shared expert。
+- Qwen 122B：每 token、每个 MoE 层固定选择 8/256 routed experts，另有 shared expert。
+- Mistral Small 4：每 token、每个 MoE 层固定选择 4/128 routed experts，另有 shared expert。
 
-F117 项目硬件记录：i7-7700HQ、32GB DDR4、GTX 1050 Ti 4GB。它是独立旧款 Windows/NVIDIA 节点；以太网只能提供 RPC 连接，不能把其 RAM/VRAM 合并进 Mac 的统一内存，也不能假设 MLX/Metal Runtime 可移植。
+模型 Router 选择专家身份，不会因任务简单就自动把 top-k 从 8 降至 2–3。手动减小 K 是非参考推理修改，可能损害回答、推理和工具调用质量；如未来试验，必须对 K=2/4/6/8 做固定任务集 A/B，默认保留原始 K=8。PACS Task Router 可以在 4B 与 Kimi 之间按任务路由，但不能与模型内部 token router 混为一谈。
 
-详细模型数据、来源、量化和资源限制见 [G6 Runtime Compatibility Audit](research/g6-runtime-compatibility-audit-2026-11-17.md) 的 G6.2 扩展章节。
+当前没有 PACS 任务或 expert-routing trace，无法给出“满负荷发生概率”的可靠数字。首轮按并发 1、短上下文、单模型、无 MTP/draft 执行；记录每层专家覆盖率、cache hit/miss、每 token 读取字节、预取命中/浪费、I/O wait、GPU compute、TTFT、tokens/s、系统内存压力及 Swap 增量，再用真实任务分布估计饱和概率。
+
+详细架构、推导、限制与证据见 [G6 Runtime Compatibility Audit](research/g6-runtime-compatibility-audit-2026-11-17.md)。
 
 ## 安全边界
 
