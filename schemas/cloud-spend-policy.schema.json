@@ -37,36 +37,91 @@
     },
     "periods": {
       "type": "array",
+      "description": "Exact approved schedule; no reordering or budget changes.",
       "minItems": 4,
       "maxItems": 4,
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "name",
-          "start",
-          "base_cap_fen"
-        ],
-        "properties": {
-          "name": {
-            "type": "string",
-            "enum": [
-              "night",
-              "morning",
-              "afternoon",
-              "evening"
-            ]
-          },
-          "start": {
-            "type": "string",
-            "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
-          },
-          "base_cap_fen": {
-            "type": "integer",
-            "minimum": 0
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "start",
+            "base_cap_fen"
+          ],
+          "properties": {
+            "name": {
+              "const": "night"
+            },
+            "start": {
+              "const": "00:00"
+            },
+            "base_cap_fen": {
+              "const": 50
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "start",
+            "base_cap_fen"
+          ],
+          "properties": {
+            "name": {
+              "const": "morning"
+            },
+            "start": {
+              "const": "07:00"
+            },
+            "base_cap_fen": {
+              "const": 50
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "start",
+            "base_cap_fen"
+          ],
+          "properties": {
+            "name": {
+              "const": "afternoon"
+            },
+            "start": {
+              "const": "12:00"
+            },
+            "base_cap_fen": {
+              "const": 100
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "start",
+            "base_cap_fen"
+          ],
+          "properties": {
+            "name": {
+              "const": "evening"
+            },
+            "start": {
+              "const": "18:00"
+            },
+            "base_cap_fen": {
+              "const": 50
+            }
           }
         }
-      }
+      ]
     },
     "rollover": {
       "type": "object",
