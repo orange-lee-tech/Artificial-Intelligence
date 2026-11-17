@@ -67,16 +67,68 @@ Interpretation limits:
 - The 36% free figure alone is not a complete pressure classification.
 - Current swap use is material enough to investigate, but without a pre-inference baseline and a DSH-on/off comparison it does not establish active swap thrashing or an unsafe state.
 
-## 4. Next measurements
 
-1. While `ollama ps` still shows the model resident, run a second short generation request and record `load_duration`, `eval_count`, `eval_duration`, and derived tokens/s.
-2. Capture `memory_pressure`, `sysctl vm.swapusage`, `ollama ps`, and top process memory before/after the request.
-3. Capture an idle baseline with Ollama model unloaded, then compare with 4B resident.
-4. Repeat with DeepSeek Harness in its normal state; do not modify its production configuration. Compare the incremental memory pressure and swap change.
-5. Keep concurrency at 1. Do not infer 35B/48B/50B suitability from the 4B model-file size or this single system snapshot.
+## 4. Second inference and before/after memory comparison
+
+User-provided second test:
+
+Before the request:
+- `ollama ps` showed no loaded model.
+- `vm.swapusage`: 1490.62 MB used / 2048.00 MB total.
+- `memory_pressure` reported system-wide free percentage 65%.
+- Pages decompressed: 2,977,864.
+- Pages compressed: 4,020,814.
+- Pageins: 3,941,958.
+- Pageouts: 22,033.
+
+Second non-streaming `/api/generate` request:
+
+| Metric | Result |
+|---|---:|
+| Response | `测试通过。` |
+| Thinking field | 718 characters |
+| `load_duration` | 5.818 s |
+| `prompt_eval_count` | 16 |
+| `prompt_eval_duration` | 0.057 s |
+| `eval_count` | 206 |
+| `eval_duration` | 7.663 s |
+| `total_duration` | 13.556 s |
+| Derived generation throughput | 26.88 tokens/s |
+
+After the request:
+- `ollama ps` showed `qwen3.5:4b`, runner `mlx`, processor `100% GPU`, context 4096, approximately 4 minutes remaining.
+- `vm.swapusage` remained 1490.62 MB used / 2048.00 MB total.
+- `memory_pressure` reported system-wide free percentage 35%.
+- Pages decompressed: 3,264,297 (delta +286,433).
+- Pages compressed: 4,405,010 (delta +384,196).
+- Pageins: 4,182,770 (delta +240,812).
+- Pageouts: 22,130 (delta +97).
+
+Process snapshot after the request:
+
+| Process | PID | RSS reported by `ps` |
+|---|---:|---:|
+| `ollama serve` | 17125 | 27,680 KB |
+| `ollama runner --model qwen3.5:4b` | 17451 | 187,920 KB |
+
+**Interpretation:**
+- This second request was also a cold load: the pre-request `ollama ps` was empty and `load_duration` was 5.818 s. It is not a warm-resident sample.
+- Throughput 26.88 tokens/s is close to the first sample's 27.93 tokens/s, but both are short cold-load samples with different generated token counts; treat ~27 tokens/s as provisional only.
+- Swap use was unchanged across this request, and pageouts increased by only 97 pages. This is encouraging, but does not prove that all memory pressure is safe or that there was no paging elsewhere.
+- The reported free-memory percentage fell from 65% to 35% during the request. Pages compressed/decompressed and pageins counters also increased. These are system-wide counters; they do not attribute memory to Ollama and should not be interpreted as current compressor footprint.
+- The small `ps` RSS values are process resident-set readings only. Do not treat them as the complete MLX/Metal unified-memory footprint without a VM/footprint accounting view.
+- The `100% GPU` field is placement/offload information, not a measurement of GPU memory usage.
+
+## 5. Next measurements
+
+1. The model is currently reported resident for about 4 minutes. Before it is evicted, capture `vmmap -summary` for the runner PID and the full `memory_pressure` output, including `Pages used by compressor`.
+2. Later, make one request while `ollama ps` confirms the model is already resident; only then classify it as a warm-resident sample. Record `load_duration`.
+3. Capture an idle baseline with the model unloaded, then compare with 4B resident.
+4. Repeat with DeepSeek Harness in its normal state; do not modify its production configuration. Compare incremental memory pressure and swap change.
+5. Keep concurrency at 1. Do not infer 35B/48B/50B suitability from the 4B model-file size or these system snapshots.
 6. Keep the internal model copy. No model deletion, large-model download, or runtime installation is authorized by this report.
 
-## 5. Gate status
+## 6. Gate status
 
 | Gate | Status |
 |---|---|
