@@ -826,13 +826,94 @@ This reduces image-token usage and avoids turning every slide into a large raste
 - Qwen3.5-4B official model card (Vision Encoder): https://huggingface.co/Qwen/Qwen3.5-4B
 - Ollama Qwen3.5 model library: https://ollama.com/library/qwen3.5
 
+## 7G. G6.3 — Qwen3.5-122B-A10B 16 GiB static memory-envelope calculation (2026-11-17)
+
+**Decision:** The 16 GiB host is *plausibly sufficient for a tightly bounded, text-first, single-request pilot* using SSD expert streaming. This is not a hardware pass, a sustained-service approval, or proof that the exact checkpoint is compatible with streamlx. The current evidence does not support simultaneous DSH + browser/Office + large-model + screenshot-vision operation.
+
+### Source inputs
+
+- Target: Mac mini M4, 16 GiB unified memory; TS900 external SSD.
+- MLX checkpoint: `mlx-community/Qwen3.5-122B-A10B-4bit`; Hugging Face currently lists 69.6 GB across 14 Safetensors shards.
+- Config: 4-bit affine quantization, group size 64; 48 layers; hidden size 3072; expert intermediate size 1024; 256 routed experts/layer; top-k 8; 2 KV heads; head dimension 256; 12 full-attention layers (one full-attention layer per four-layer interval) and 36 linear-attention layers; linear value heads 64 × value dimension 128; `mamba_ssm_dtype=float32`.
+- streamlx trunk loading is lazy and routed experts are streamed from Safetensors. Its README's default expert budget is 8 GiB; this is too high for the PACS 16 GiB policy and must be overridden. The README lists `qwen3_5_moe` as a validated family (Qwen3.6), not an end-to-end validation of this exact Qwen3.5-122B checkpoint.
+
+### Routed expert tensor arithmetic (shape-derived, not index-parsed)
+
+Assumptions: each routed expert is SwiGLU with gate, up and down projections; each matrix has shape 3072 × 1024; all routed expert tensors use 4-bit affine quantization, group size 64, with FP16/BF16 scale and bias (4 bytes per 64-weight group).
+
+```
+parameters/expert = 3 × 3072 × 1024 = 9,437,184
+packed 4-bit weights = 9,437,184 / 2 = 4,718,592 bytes
+quant groups = 9,437,184 / 64 = 147,456
+scale + bias = 147,456 × 4 = 589,824 bytes
+estimated bundle/expert = 5,308,416 bytes = 5.0625 MiB
+
+all routed experts = 48 × 256 = 12,288
+estimated routed-expert tensors = 65,229,815,808 bytes = 60.75 GiB
+
+per-token top-k slot floor = 48 × 8 = 384 bundles
+minimum expert pool = 2,038,431,744 bytes = 1.8984 GiB
+```
+
+The model repository's displayed 69.6 GB checkpoint is approximately 64.82 GiB. Subtracting the shape-derived 60.75 GiB routed-expert estimate leaves approximately **4.07 GiB for the entire non-routed trunk**: attention, embeddings/output, routers/norms, shared experts, vision tower and other non-routed tensors. This residual is an estimate, not a measured shell allocation. Exact per-tensor index/header parsing could change it.
+
+### Context-state estimates
+
+- Full attention: 12 layers × 2 KV heads × 256 dimensions × K/V × 2 bytes = 24,576 bytes/token.
+- MLA-style KV equivalent: 4K ≈ 96 MiB; 8K ≈ 192 MiB; 16K ≈ 384 MiB.
+- Linear-attention recurrent state (shape estimate): 36 layers × 64 value heads × 128 × 128 FP32 elements ≈ 144 MiB, plus convolution state and runtime metadata. Actual MLX cache dtype/layout is not yet measured.
+- 4K/8K context-state estimate is small relative to the shell and expert pool; prefill scratch and allocator peaks are the larger unknowns.
+
+### PACS 16 GiB budget scenarios
+
+PACS retains a **provisional 5 GiB non-model reserve** for macOS, DSH, user/agent applications and operating headroom. Therefore the provisional model-side ceiling is 11 GiB only if actual non-model usage stays within 5 GiB.
+
+| Item | Minimum-pool case | Practical pilot envelope |
+|---|---:|---:|
+| Non-routed shell estimate | 4.07 GiB | 4.07 GiB |
+| Expert pool | 1.90 GiB minimum | 3.00 GiB cap |
+| 4K KV | 0.094 GiB | 0.094 GiB |
+| Linear recurrent state | 0.141 GiB | 0.141 GiB |
+| **Subtotal before runtime/scratch** | **6.20 GiB** | **7.30 GiB** |
+| Non-model reserve | 5.00 GiB | 5.00 GiB |
+| **Remaining for runtime, MLX/Metal allocator, prefill scratch, transient activations and extra buffers** | **4.80 GiB** | **3.70 GiB** |
+
+At 8K, add approximately 96 MiB to the 4K figures. Context length is not the primary static obstacle at 4K–8K; the exact shell, execution scratch, allocator behavior and cache residency are.
+
+The streamlx documented default 8 GiB expert budget would produce approximately 12.30 GiB for shell + expert pool + 4K recurrent/KV state alone, before the 5 GiB non-model reserve. It is therefore **not acceptable** on this host under PACS policy. Start with a 2.0–2.5 GiB correctness/memory probe (the 1.90 GiB floor is a hard lower bound); only consider 3 GiB if measured headroom permits. Do not set 8 GiB by copying the upstream default.
+
+### I/O and performance constraint
+
+The shape-derived cold-miss envelope for all 384 routed experts selected by a token is approximately 1.90 GiB. At the measured TS900 uncached sequential-read reference of 834.7 MiB/s, fully cold serialized transfer is about 2.33 seconds/token-equivalent. This is not a decode-latency prediction: expert reuse, cache hit rate, merged reads, prefetch and GPU/I/O overlap can improve it substantially. The 16 GiB hit rate and actual tokens/s are unknown. Memory feasibility does not imply acceptable interactive speed.
+
+### Explicit first-pilot limits
+
+- Single model process, concurrency 1, 4K context, bounded output.
+- Text-only first; do not send screenshots or images through streamlx until the full vision tower/processor path is verified.
+- Stop/unload Ollama Qwen3.5-4B before loading the large model; do not co-reside both runners.
+- Expert pool 2.0–2.5 GiB initially; bounded prompt cache and MLX cache; prefill chunk 2048 or smaller if measured scratch requires it.
+- Disable MTP/draft and speculative prefetch initially; keep GPU keepalive off for the first correctness/memory baseline. Measure before enabling prefetch.
+- Do not launch browser/Office/GUI-agent workloads concurrently in the first memory acceptance test.
+- Stop on rising system memory pressure, sustained swap growth, memory compression escalation, or Apple thermal state Serious/Critical. No numeric watt/temperature threshold is claimed.
+- Measure total system memory pressure, MLX active/peak, process physical footprint, swap delta, prefill peak, expert hit/miss and actual read bytes, TTFT, decode tok/s and thermal state.
+
+### Final G6.3 judgement
+
+- **Can the 10B-active model plausibly fit in 16 GiB with expert streaming? YES, conditionally**, at 4K–8K, one request, a small bounded expert pool and no concurrent vision/GUI workload.
+- **Is it proven to run on this exact Mac mini? NO.** No target hardware run was performed.
+- **Is it approved as a daily always-on PACS model with DSH, GUI apps and direct screenshot vision? NO.**
+- **Is speed guaranteed to be useful? NO.** Cache locality and SSD/GPU overlap remain unmeasured.
+- **Is the exact Qwen3.5-122B checkpoint accepted by streamlx? NOT YET.** The family adapter is listed, but exact pinned index/header, expert key layout, lazy shell load and full 122B correctness still require source-level verification.
+
+This calculation closes the first-order *static arithmetic* question. It does not close G6.2 exact-checkpoint compatibility, G6.3 measured peak memory, G6.4 I/O/Metal overlap, or thermal acceptance. No download, installation, runtime execution or production configuration change was performed.
+
 ## 10. G6 status
 
 | Gate | Status | Evidence |
 |---|---|---|
 | G6.1 Runtime source audit | COMPLETE | Source, package metadata, architecture, cache, memory and I/O paths inspected |
 | G6.2 Exact checkpoint compatibility | PARTIAL / SOURCE-LEVEL | Kimi checkpoint revision and public config/expert-key family identified; exact pinned index byte accounting and shell tensor total remain pending |
-| G6.3 16 GiB memory envelope | PARTIAL / DERIVED ESTIMATES | Kimi MLA cache slope and KDA state shape estimated; exact shell, cache floor, scratch and whole-host envelope remain pending; no target runtime executed |
+| G6.3 16 GiB memory envelope | PARTIAL / SHAPE-DERIVED | Qwen 122B: shell residual ~4.07 GiB, minimum top-k pool ~1.90 GiB, 4K KV ~96 MiB, recurrent state ~144 MiB; 2–3 GiB pilot cache leaves ~2.7–3.7 GiB for scratch/runtime after 5 GiB reserve; exact index and measured peak pending |
 | G6.4 TS900 runtime-level I/O overlap | NOT TESTED | Only generic SSD benchmark exists |
 | G6-Safety static power/thermal envelope | PARTIAL / SOURCE-BASED | Apple specifications and third-party stress review; no PACS workload measurement |
 | G6-Context prompt/KDA/MLA accounting | PARTIAL / SOURCE-BASED | Kimi config and streamlx cache code inspected; no local runtime measurement |
