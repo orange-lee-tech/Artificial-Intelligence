@@ -306,6 +306,88 @@ Measure on the TS900:
 
 The 834.7 MiB/s storage baseline is an input to this analysis, not a tokens/s prediction.
 
+## 7A. G6.2 — Exact checkpoint candidate audit (read-only, 2026-11-17)
+
+### Primary candidate: Kimi-Linear-48B-A3B-Instruct, MLX 4-bit
+
+**Candidate status: STRONG SOURCE-LEVEL MATCH / NOT HARDWARE-VALIDATED**
+
+Exact MLX checkpoint:
+- Repository: `mlx-community/Kimi-Linear-48B-A3B-Instruct-4bit`
+- Exact inspected repository revision: `a10c7aa245785079a2b61bf9f9c2038906542856`
+- Model card: https://huggingface.co/mlx-community/Kimi-Linear-48B-A3B-Instruct-4bit
+- Pinned config: https://huggingface.co/mlx-community/Kimi-Linear-48B-A3B-Instruct-4bit/blob/a10c7aa245785079a2b61bf9f9c2038906542856/config.json
+- Pinned model index: https://huggingface.co/mlx-community/Kimi-Linear-48B-A3B-Instruct-4bit/blob/a10c7aa245785079a2b61bf9f9c2038906542856/model.safetensors.index.json
+
+**SOURCE_VERIFIED from model card/config/index and streamlx README:**
+
+| Field | Value |
+|---|---|
+| Total parameters | 49B |
+| Active parameters | 3B |
+| MLX checkpoint size | 27.6 GB (model card display) |
+| Format | Safetensors, MLX |
+| Model type | `kimi_linear` |
+| Architecture | `KimiLinearForCausalLM` |
+| Decoder layers | 27 |
+| Dense prefix | first layer is dense (`first_k_dense_replace: 1`) |
+| MoE layers | 26 (derived from layer count + dense prefix + `moe_layer_freq: 1`) |
+| Routed experts / MoE layer | 256 |
+| Routed top-k | 8 (`num_experts_per_token: 8`) |
+| Shared experts | 1 |
+| Expert intermediate size | 1024 |
+| Hidden size | 2304 |
+| Attention layout | 20 KDA linear-attention layers + 7 MLA full-attention layers |
+| Context metadata | 1,048,576 maximum; not a promise that such a context fits on 16 GiB |
+| Quantization | affine 4-bit, group size 64 |
+| Router gate override | per-layer `model.layers.N.mlp.gate` is 8-bit |
+| License | MIT on MLX checkpoint card |
+| Custom code | model card is tagged `custom_code`; config contains `auto_map` entries |
+
+The model index/commit shows six safetensors shards and expert tensor keys in the stacked layout, including `model.layers.N.mlp.switch_mlp.{gate_proj,up_proj,down_proj}.{weight,scales,biases}`. This is a direct structural match for streamlx's documented `switch_mlp` byte-range streaming path.
+
+**Runtime match:** streamlx README explicitly lists `kimi_linear` among the validated model families. This is stronger evidence than merely sharing a generic MoE label. It is still not proof that this exact immutable 4-bit checkpoint revision was exercised by the streamlx author on a 16 GiB Mac mini.
+
+### Important implementation detail: top-k config key spelling
+
+The Kimi config uses `num_experts_per_token`. streamlx's inspected `_routed_topk()` helper reads `num_experts_per_tok` and otherwise falls back to 8. The present Kimi checkpoint's top-k is also 8, so the fallback happens to match. For a controlled load, pass `k=8` explicitly through the Python API or add a verified compatibility check before serving. Do not assume the fallback is universally correct for other Kimi variants.
+
+### Estimated minimum expert-pool floor — not exact
+
+Using the config's 26 MoE layers, top-8, hidden 2304, expert intermediate 1024, three SwiGLU projections (gate/up/down), 4-bit packed weights, and affine scale/bias arrays at group size 64 gives a first-order estimate:
+
+```
+parameters per expert ≈ 3 × 2304 × 1024 = 7,077,888
+packed 4-bit weights ≈ 3,538,944 bytes
+FP16 scale + bias estimate ≈ 442,368 bytes
+estimated expert bundle ≈ 3,981,312 bytes
+minimum slots = 26 × 8 = 208
+estimated minimum pool ≈ 828,112,896 bytes ≈ 0.77 GiB
+```
+
+**INFERRED / NOT YET INDEX-VERIFIED:** this is a shape-based estimate, not a measurement from parsing all tensor shapes and byte offsets in the exact pinned safetensors index. The final G6.2 gate must calculate each layer's actual expert bundle bytes from the pinned index and verify whether any nonuniform layer shapes, quantization exceptions, padding, or additional expert tensors change the floor.
+
+The pool floor being below 1 GiB is promising. It does **not** prove 16 GiB feasibility: the non-expert trunk, embeddings, router/attention weights, MLX runtime, active compute buffers, recurrent/KDA state, MLA KV state, prompt cache, OS headroom and memory safety reserve still have to fit.
+
+### Kimi architecture implication
+
+The model combines 20 KDA linear-attention layers and 7 MLA full-attention layers. This is potentially favorable for long-context cache growth compared with a conventional all-full-attention model, but it is not zero-cache. The actual MLX cache implementation and per-token cache growth must be measured. The configured one-million-token maximum context is not a usable 16 GiB target without a separate cache/memory proof.
+
+### Secondary comparison candidates
+
+1. **Qwen3.6-35B-A3B, MLX 4-bit** — streamlx's README reports a 22.1 GB checkpoint and publishes M4 MacBook Air 32 GB tests at several expert budgets. serve-mlx also lists Qwen3.6-35B-A3B-8bit among its tested checkpoints on an M4 MacBook Pro 24 GB. Useful as a less ambitious architecture/runtime control, not the primary 48B target. Author hardware results are not transferable to our 16 GiB Mac mini.
+2. **Gemma 4 26B-A4B, MLX 8-bit** — serve-mlx lists this among its tested checkpoints and contains a Gemma4 adapter/test. Useful as an independent architecture comparison, but it does not meet the 48B–50B total-parameter objective.
+3. **Laguna-S-2.1 117B, oQ2e-fast** — streamlx README reports SSD-streaming measurements on an M4 MacBook Air 32 GB. This is an oversized stress-test candidate, not the first 16 GiB target. Its top-10-of-256 routing creates a substantially larger per-layer minimum expert-slot floor than Kimi top-8, and the published results used a faster SSD and 32 GB host.
+
+### G6.2 decision
+
+- **Primary candidate for exact metadata and later isolated pilot planning:** `mlx-community/Kimi-Linear-48B-A3B-Instruct-4bit`.
+- **Control/fallback candidate:** Qwen3.6-35B-A3B 4-bit.
+- **Architecture comparison candidate:** Gemma 4 26B-A4B 8-bit.
+- **Large-model stress candidate only:** Laguna-S-2.1 117B oQ2e-fast.
+
+**G6.2 remains PARTIAL.** Architecture family, quantization metadata, model card size, shard count, expert key naming and streamlx family support are confirmed from public sources. Exact per-layer expert bundle byte totals, full shell byte count, checkpoint immutable revision pinning against all shard files, and 16 GiB runtime memory fit are not yet established. No checkpoint was downloaded.
+
 ## 8. Current recommendation
 
 1. Continue source-level and model-format work on **streamlx** as the primary performance candidate.
