@@ -119,23 +119,32 @@ Process snapshot after the request:
 - The small `ps` RSS values are process resident-set readings only. Do not treat them as the complete MLX/Metal unified-memory footprint without a VM/footprint accounting view.
 - The `100% GPU` field is placement/offload information, not a measurement of GPU memory usage.
 
-## 5. Next measurements
 
-1. The model is currently reported resident for about 4 minutes. Before it is evicted, capture `vmmap -summary` for the runner PID and the full `memory_pressure` output, including `Pages used by compressor`.
-2. Later, make one request while `ollama ps` confirms the model is already resident; only then classify it as a warm-resident sample. Record `load_duration`.
-3. Capture an idle baseline with the model unloaded, then compare with 4B resident.
-4. Repeat with DeepSeek Harness in its normal state; do not modify its production configuration. Compare incremental memory pressure and swap change.
-5. Keep concurrency at 1. Do not infer 35B/48B/50B suitability from the 4B model-file size or these system snapshots.
-6. Keep the internal model copy. No model deletion, large-model download, or runtime installation is authorized by this report.
+## 7. Follow-up VM Map attempt and unloaded-model memory snapshot
 
-## 6. Gate status
+User-provided follow-up check:
 
-| Gate | Status |
-|---|---|
-| G3 — Ollama external model-store functional verification | PASS (physical blob-path evidence still desirable) |
-| G4 — 4B performance and memory baseline | IN PROGRESS |
-| G5 — TS900 SSD I/O benchmark | NOT TESTED |
-| G6 — SSD Expert Streaming Runtime audit | RESEARCH STARTED |
-| G7 — MoE isolated pilot | NOT STARTED |
+- `ollama ps` was empty at capture time.
+- A process search briefly returned runner PID `17738`, but `vmmap` immediately reported that PID no longer appeared to be running. No VM Map / physical-footprint result was obtained.
+- `memory_pressure` reported:
+  - system-wide free percentage: 66%;
+  - pages active: 255,343;
+  - pages wired down: 133,840;
+  - pages used by compressor: 203,062;
+  - pages decompressed: 3,376,802;
+  - pages compressed: 4,405,010.
+- `vm.swapusage`: 1490.62 MB used / 2048.00 MB total, unchanged from the previous reported snapshot.
 
-**PR #2 remains Draft / unmerged.**
+With the reported 16 KiB page size, 203,062 compressor pages correspond to approximately 3.10 GiB and 133,840 wired pages to approximately 2.04 GiB. These are system-wide values. The 66% free reading was captured with no model listed in `ollama ps`; it is an **unloaded-model snapshot**, not yet a clean idle baseline because other applications and DeepSeek Harness state were not separately controlled or recorded.
+
+Interpretation:
+- The VM Map attempt failed because the runner had exited before `vmmap` inspected it; it does not establish a permission failure or model crash.
+- The higher free-memory percentage after the model disappeared is consistent with memory being reclaimed after model unload, but the percentage delta cannot be converted directly into model footprint.
+- Swap remaining unchanged is encouraging, but a single unchanged swap snapshot does not establish overall memory safety.
+- Do not attribute system-wide compressor, wired, or free-memory values solely to Ollama.
+
+## 8. Next capture: keep the runner resident during VM Map
+
+Use one API request with a bounded `keep_alive` (for example, `10m`), then immediately verify `ollama ps`, identify the current runner PID, and run `vmmap -summary` before the keep-alive window expires. Capture full `memory_pressure` and `vm.swapusage` in the same window. After collecting evidence, unload the model explicitly with `keep_alive: 0` if desired.
+
+Continue to keep concurrency at 1. Do not delete the internal model copy or download a larger model based on these snapshots.
