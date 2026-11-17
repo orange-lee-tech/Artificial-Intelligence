@@ -38,6 +38,8 @@
 - A sequential test file larger than the host's 16 GiB unified memory, combined with cache-bypassing reads where supported, reduces the risk of reporting memory-cache throughput as SSD throughput.
 - The benchmark should include sequential write/read and bounded random 4 KiB / 64 KiB reads, with exact test-file cleanup limited to the directory created by the test.
 
+**Reproducible implementation:** [`scripts/mac/benchmark-ts900.sh`](../scripts/mac/benchmark-ts900.sh). The script checks the APFS mount and at least 40 GiB free space, refuses to run while any Ollama model is resident, creates a unique 24 GiB temporary file outside `models`, uses Darwin `F_NOCACHE` for sequential and random reads, and cleans up only its own test file/directory. It does not install tools or change service configuration.
+
 ## Planned safe test
 
 1. Recheck mount point and available capacity immediately before writing.
