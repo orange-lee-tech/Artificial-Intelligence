@@ -184,10 +184,23 @@ streamlx 还有一个需注意的默认行为：`STREAMLX_KEEPALIVE` 默认开�
 - Notebookcheck 的 CPU+GPU 压力测试曾测得约 57–58W 持续整机功耗、SoC 约 102°C、风扇约 2,950 RPM；不是 PACS LLM 实测，不能外推为目标模型温度。
 - Apple Thermal State：Fair 降低预取/后台负载；Serious 停止接收新任务并卸载模型；Critical 中止推理并冷却。powermetrics 的功耗是估算，热状态读数是瞬时采样。
 - 形状推算的完整 routed-expert cold miss：Kimi 约 0.77 GiB/token，Qwen 122B 约 1.90 GiB/token；按 TS900 834.7 MiB/s 顺序读取参考，对应约 0.95s / 2.33s 的串行读取时间等价。不是实际 token latency，缓存命中、预取、I/O 合并和计算重叠会显著改变结果。
-- PACS 暂定至少保留 5 GiB 给 macOS + DSH + 后台服务；这是项目保守策略，不是 Apple 规格，并参考现有 4B Runner 约 4.3 GiB 的 process peak 设置。现有 4B 基线尚未验证 DSH 共存，因此若 DSH 基线需要更多，继续提高 reserve。模型侧 shell+expert cache+state+scratch+runtime 合计不得超过 11 GiB。
+- PACS 暂定至少保留 5 GiB 作为 macOS + DSH + 用户/Agent GUI 应用 + 后台服务 + 运行余量的非模型预算下限；这是项目暂定策略，不是 Apple 规格，也不是实测保证。纠正：现有 4B Runner 约 4.3 GiB 的 process peak 属于模型进程占用，不是 5 GiB 非模型预留的依据，只能作为模型侧参考。实际非模型占用超过 5 GiB 时，模型预算必须逐 GiB 下调；11 GiB 只是非模型预留确实满足时的模型侧上限，不是默认可用额度。
 - 首个候选仅做静态可行性分析；单模型槽、并发 1、4K 起步、无 MTP/draft、有限缓存/预取。未完成内存、热和 SSD 温度证据前，不宣称适合无人值守持续服务。
 
 详细推导与限制见 [G6 Runtime Compatibility Audit](research/g6-runtime-compatibility-audit-2026-11-17.md#7d-g6-safety--16gb-memory-power-thermal-and-ssd-risk-gate-2026-11-17)。
+
+### G6-Context — 上下文、截图与 Agent 副产物预算
+
+- Kimi Linear 是 20 层 KDA + 7 层 MLA 的混合注意力模型。按 16-bit MLA cache 假设，cache 斜率约 8,064 bytes/token：4K=31.5MiB、8K=63MiB、128K=0.984GiB、256K=1.969GiB、1M=7.875GiB。KDA recurrent state 对序列长度固定，但实际 dtype/layout 仍需核验。1M 是模型配置上限，不是 16GB Mac mini 的安全运行承诺。
+- 语义压缩与 Prompt Cache 必须区分：语义压缩生成结构化任务摘要、保存原始事件记录、以短 prompt 重建上下文；Prompt/Prefix Cache 只复用已计算状态，不会缩短上下文，反而占 RAM 或 SSD。
+- streamlx 支持有字节上限的 RAM prompt-cache LRU 和可选 SSD 分段 KV/prompt cache；TS900 同时承载专家读取，SSD cache 可能造成 I/O 竞争。Kimi 混合缓存的 recurrent state 只能在 segment 边界恢复，精确 Kimi 分支/回滚行为仍需验证。
+- Kimi Linear checkpoint 按当前模型配置视为 text-only；截图应优先走 Accessibility Tree/OCR。必须视觉理解时，使用 Qwen3.5-4B 视觉路径作为独立阶段，完成后卸载，再交给 Kimi 做文本推理；不允许两个模型同时驻留。
+- 4K 解码 RGBA 截图约 31.6MiB/帧，十帧约 316MiB，尚未包含 crop、patch、vision tensor 和 encoder activation。截图只保留当前帧及必要的比较帧，优先 ROI crop，抽取完成后释放图像缓冲。
+- 浏览器、IDE、终端、文件查看器和 Agent 自动化宿主都属于整机内存预算。Agent 只能关闭自己创建的 Tab/应用，不自动终止用户进程。监控 Metal-aware process footprint 和系统内存压力，不能只看 RSS。
+- 初始建议：4K context、并发 1；达到配置 prompt token budget 的 70% 开始语义压缩，85% 前强制压缩；系统内存压力、Swap 增长、Agent 应用 footprint 或截图队列异常时提前压缩/拒绝请求。该阈值是 PACS 提案，不是 Runtime 默认值。
+- 完整内存方程：macOS + DSH + 用户应用 + Agent 应用 + model shell + expert pool + KDA/MLA state + prompt cache + prefill scratch + vision buffers + runtime/allocator + uncommitted headroom ≤ 16 GiB。
+
+详见 [G6 Runtime Compatibility Audit / G6-Context](research/g6-runtime-compatibility-audit-2026-11-17.md)。
 
 ## 安全边界
 
