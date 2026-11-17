@@ -1,0 +1,36 @@
+{
+  "version": "phase2-2026-11-17",
+  "currency": "CNY",
+  "timezone": "Asia/Singapore",
+  "daily_cap_fen": 200,
+  "per_request_cap_fen": 20,
+  "periods": [
+    {
+      "name": "night",
+      "start": "00:00",
+      "base_cap_fen": 50
+    },
+    {
+      "name": "morning",
+      "start": "07:00",
+      "base_cap_fen": 50
+    },
+    {
+      "name": "afternoon",
+      "start": "12:00",
+      "base_cap_fen": 100
+    },
+    {
+      "name": "evening",
+      "start": "18:00",
+      "base_cap_fen": 50
+    }
+  ],
+  "rollover": {
+    "enabled": true,
+    "scope": "same_local_day_only",
+    "method": "cumulative_accrual"
+  },
+  "unknown_cost_action": "deny",
+  "cloud_routing": "adaptive_local_first"
+}
