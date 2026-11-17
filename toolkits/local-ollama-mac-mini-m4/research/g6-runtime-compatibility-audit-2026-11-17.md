@@ -745,6 +745,87 @@ The 5 GiB non-model reserve is a provisional floor, not a fixed measurement. The
 | Agent app process budget | POLICY DEFINED; host measurements pending |
 | Context compaction thresholds | PROPOSED; not runtime implemented |
 
+## 7F. G6-Vision & App Integration — screenshot understanding and Office workflows (2026-11-17)
+
+This gate separates model-level modality from runtime-level support and application automation. The user's visual requirement is deliberately narrow: understand computer-screen screenshots. Video understanding, video editing, diffusion/image generation and complex creative-media pipelines are out of scope.
+
+### Corrected model-role map
+
+| Model | PACS role | Model-level image input | Current runtime evidence |
+|---|---|---|---|
+| Qwen3.5-122B-A10B | P0 primary capability research target | YES; official model card identifies a vision encoder and text/image input | MLX-VLM image-input example exists; full vision + streamlx expert-streaming path is NOT VERIFIED |
+| Mistral Small 4 119B-A6.5B | P1 architecture/quality comparison | YES; official Mistral announcement says text and image input | No validated streamlx mistral4 adapter; end-to-end local image path NOT VERIFIED |
+| Kimi Linear 48B-A3B | Lower-risk MoE streaming pilot candidate | NO; text-generation / CausalLM checkpoint | Text-only path is the relevant target |
+| Existing Qwen3.5-4B | Installed baseline and possible screenshot helper | YES at model architecture/checkpoint level; official card identifies a vision encoder | Exact installed Ollama version + model artifact image-input request has NOT been locally tested in this audit |
+
+This corrects any reading that Kimi Linear is the sole or final PACS primary model. The current expanded model-selection decision keeps Qwen3.5-122B-A10B as the P0 capability target and Kimi Linear as the lower-risk streaming pilot candidate. Do not promote a text-only Kimi deployment to the only PACS assistant if direct screenshot understanding is a required product capability.
+
+### Critical runtime boundary
+
+- The Qwen3.5-122B-A10B official model card identifies a vision encoder. The MLX community 4-bit checkpoint was converted using mlx-vlm and documents an image-input example via `mlx_vlm.load` / `mlx_vlm.generate`.
+- streamlx README validates the Qwen3.5 MoE language-model family and says it remaps **MLX-VLM text-only exports** whose tensors use the `language_model.` prefix. That wording is not evidence that streamlx streams/loads the complete vision tower, image processor, image embeddings or multimodal prefill path.
+- Therefore: Qwen3.5-122B is multimodal as a model, but its complete visual-input path through the PACS-selected SSD expert-streaming runtime remains **NOT VERIFIED**. Do not claim image understanding is deployable until a real image request passes end-to-end through the exact pinned checkpoint, runtime and server API.
+- Mistral Small 4 is also multimodal at the model level, but its `mistral4` adapter and image-input runtime path remain unverified. It is not a drop-in alternative until both are audited.
+- The existing Qwen3.5-4B checkpoint is a vision-language architecture. Its installed Ollama artifact/runtime version still needs a local image-request smoke test; architecture metadata alone is not proof that the current installed server path accepts images.
+
+### Minimal screenshot-understanding pipeline
+
+1. Prefer macOS Accessibility APIs / UI element tree and OCR for readable text, labels, menu items and control states. This avoids invoking a VLM for routine screen inspection.
+2. Invoke a vision model only for visual layout, icon/diagram interpretation, ambiguous state or OCR failure.
+3. Capture a single screenshot or a small region of interest (ROI); crop and resize while retaining the legibility required by the task.
+4. Ask for a compact structured result: visible app/window, relevant controls, text, state, approximate coordinates only when needed, confidence and unresolved ambiguity.
+5. Release decoded pixels, image tensors and temporary crops after extraction. Store the original screenshot as an external evidence artifact only when required for audit.
+6. Send the compact structured result to the primary reasoning model. Do not repeatedly attach the same screenshot to the conversation.
+7. On the 16 GiB Mac mini, keep the initial single-model-slot rule. If Qwen3.5-4B performs visual extraction and Kimi performs reasoning, run them sequentially, unload/release the vision runner before loading the MoE model, and verify memory recovery. Do not claim simultaneous residency.
+8. If the final Qwen3.5-122B runtime later passes full vision support and the whole-host budget, it may consume the screenshot directly; keep the OCR/accessibility path as the low-cost default.
+
+### Office / PPT / diagram generation is an application workflow, not image generation
+
+The user's output requirement is editable office-style material: slide text, shapes, tables, charts, diagrams and export to PDF/PNG. It does not require video creation, diffusion models or complex raster-art generation.
+
+Preferred workflow:
+- Primary model produces slide outline, content, layout constraints and structured data.
+- A deterministic PPTX renderer (for example python-pptx or PptxGenJS) or an installed Office/Keynote/LibreOffice automation interface creates editable slides using text, vector shapes, tables and charts.
+- An application API/CLI/AppleScript/MCP connector may open, format, export and save the deck when the installed application exposes a supported interface. Do not assume a connector exists before checking.
+- Export PDF/PNG for preview; visually inspect only selected slides or a single rendered slide at a time. Retain the editable PPTX as the source of truth.
+- Use image generation only when a specific illustration cannot be represented adequately with native shapes or charts.
+
+This reduces image-token usage and avoids turning every slide into a large raster input. It does not make the Office application free: PowerPoint/Keynote/LibreOffice and any automation host still consume RAM and must be included in the whole-host memory budget. Prefer deterministic/headless generation where possible, and open one application instance only when visual QA or application-specific export is required.
+
+### G6-Vision acceptance tests (not yet run)
+
+1. Verify the exact installed Qwen3.5-4B model accepts an image through the current Ollama endpoint and returns grounded observations from a harmless test screenshot.
+2. Separately verify the pinned Qwen3.5-122B MLX checkpoint's image path with mlx-vlm on a host/runtime that can safely load it; this is a compatibility probe, not authorization to load the 122B model on the 16 GiB target.
+3. Audit whether the candidate streaming runtime can preserve and execute the vision tower and processor while expert tensors are streamed. A text-only export test does not pass this gate.
+4. Measure image pre-processing, vision encoder peak, image-token expansion, prefill scratch and total process/system footprint; test one image, one ROI, concurrency 1.
+5. Verify screenshot outputs against a small fixed set of desktop states: app/window identification, button/menu recognition, dialog/error interpretation, OCR and coordinate grounding.
+6. Verify PPTX generation and export with a small deterministic deck; test that text/shapes remain editable and that only one slide render is held for visual QA.
+
+### G6-Vision status
+
+| Item | Status |
+|---|---|
+| Qwen3.5-122B model-level image capability | SOURCE VERIFIED |
+| Qwen3.5-122B MLX-VLM image example | SOURCE VERIFIED |
+| Qwen3.5-122B + streamlx full vision path | NOT VERIFIED |
+| Mistral Small 4 model-level image capability | SOURCE VERIFIED |
+| Mistral Small 4 + streaming runtime | NOT VERIFIED |
+| Kimi Linear 48B-A3B image input | NOT SUPPORTED by inspected text-generation checkpoint |
+| Existing Qwen3.5-4B model-level vision architecture | SOURCE VERIFIED |
+| Installed Qwen3.5-4B Ollama image-input path | NOT TESTED on target host |
+| Accessibility/OCR-first screenshot workflow | POLICY DEFINED |
+| PPTX/Office automation path | DESIGN DEFINED; installed app/connector discovery and test pending |
+
+### G6-Vision evidence sources
+
+- Qwen3.5-122B-A10B official model card (Vision Encoder; text/image capability): https://huggingface.co/Qwen/Qwen3.5-122B-A10B
+- MLX 4-bit Qwen3.5-122B-A10B model card and mlx-vlm image example: https://huggingface.co/mlx-community/Qwen3.5-122B-A10B-4bit
+- streamlx README (Qwen MoE support and explicit MLX-VLM text-only export wording): https://github.com/srcterm/streamlx/blob/main/README.md
+- Mistral Small 4 official announcement (text and image inputs): https://mistral.ai/news/mistral-small-4/
+- Kimi Linear official model card (Text Generation): https://huggingface.co/moonshotai/Kimi-Linear-48B-A3B-Instruct
+- Qwen3.5-4B official model card (Vision Encoder): https://huggingface.co/Qwen/Qwen3.5-4B
+- Ollama Qwen3.5 model library: https://ollama.com/library/qwen3.5
+
 ## 10. G6 status
 
 | Gate | Status | Evidence |
@@ -755,7 +836,9 @@ The 5 GiB non-model reserve is a provisional floor, not a fixed measurement. The
 | G6.4 TS900 runtime-level I/O overlap | NOT TESTED | Only generic SSD benchmark exists |
 | G6-Safety static power/thermal envelope | PARTIAL / SOURCE-BASED | Apple specifications and third-party stress review; no PACS workload measurement |
 | G6-Context prompt/KDA/MLA accounting | PARTIAL / SOURCE-BASED | Kimi config and streamlx cache code inspected; no local runtime measurement |
-| G6-Context screenshots/agent applications | POLICY DEFINED / NOT MEASURED | Qwen vision vs Kimi text-only routing; no GUI-agent stress test |
+| G6-Context screenshots/agent applications | POLICY DEFINED / NOT MEASURED | Accessibility/OCR-first, bounded screenshots and app-process budget; no GUI-agent stress test |
+| G6-Vision model/runtime compatibility | PARTIAL / SOURCE-VERIFIED | Qwen 122B and Mistral Small 4 are model-level vision-capable; streamlx full vision path and installed 4B Ollama image API remain untested |
+| G6-App Office/PPT automation | DESIGN DEFINED / NOT TESTED | Editable PPTX via deterministic renderer or supported app API; installed app/connector and RAM impact pending |
 | Runtime installation | NOT AUTHORIZED IN THIS PHASE | No installation performed |
 | Large model download | NOT AUTHORIZED IN THIS PHASE | No model downloaded |
 | Ollama / DSH production configuration | UNCHANGED | No production configuration modified |
