@@ -220,3 +220,31 @@ Usage Ledger + 审计日志 + WeChat 状态/结果通知
 14. Qwen3.5-35B-A3B official model card: https://huggingface.co/Qwen/Qwen3.5-35B-A3B
 15. Qwen3.5-4B official model card: https://huggingface.co/Qwen/Qwen3.5-4B
 16. MLX Serve supported architecture list (Qwen 3.5 MoE architecture support; not proof of SSD paging): https://github.com/ddalcu/mlx-serve/blob/main/docs/models.md
+
+
+## 11. 2026-11-17 实测 TS900 非零数据基线
+
+用户在 Mac mini M4 / macOS 26.2 上完成修正后的 24 GiB 非零高熵数据测试。外置卷为 USB / APFS，测试文件位于模型目录之外。
+
+| 指标 | 实测 |
+|---|---:|
+| /dev/urandom → /dev/null 数据源速度 | 633.4 MiB/s |
+| 顺序写入 + sync | 408.9 MiB/s |
+| F_NOCACHE 顺序读取 | 834.7 MiB/s |
+| 4 KiB QD1 random pread | 5,492.1 IOPS |
+| 4 KiB 平均 / P50 / P95 | 0.182 / 0.205 / 0.288 ms |
+| 64 KiB QD1 random pread | 2,983.6 IOPS |
+| 64 KiB 平均 / P50 / P95 | 0.335 / 0.393 / 0.451 ms |
+| 测试文件 | 24 GiB |
+| st_blocks / logical size | 1.0003 |
+| 清理 | PASS；临时文件删除，可用空间恢复至 946 GiB |
+
+首轮 /dev/zero 的 909.5 MiB/s 写入值不再作为基线；该轮仅保留为 provisional 原始观察。第二轮使用 /dev/urandom，文件分配比例约 1.0003，避免了全零数据/稀疏文件测试的主要偏差。
+
+**测量边界：**
+- 写入+sync 是包含随机数据生成、dd、APFS、USB 和 sync 的端到端测量。数据源上限 633.4 MiB/s 高于测得写入速率 408.9 MiB/s，表明数据源未明显限制本次写入，但不能将其等同于 SSD 控制器规格。
+- 顺序读取启用 Darwin F_NOCACHE，24 GiB 文件大于 16 GiB 统一内存，834.7 MiB/s 可作为当前存储路径的有效 bulk-read 参考。
+- 随机读取是单线程、单 outstanding pread（QD1）样本；IOPS 不代表设备最大队列深度性能，也不是目标 runtime 的专家张量访问测量。
+- 单次运行未验证多轮重复性、持续热负载/温度、USB negotiated link speed 或 SMART 健康状态（USB 路径不支持 SMART）。
+
+**对 Expert Streaming 的结论：** 当前 TS900 具备可量化的外置顺序读取能力，足以继续做 runtime 源码/模型兼容性审计及隔离的 runtime-level I/O pilot。不能仅凭 834.7 MiB/s 或 QD1 IOPS 推断 35B/48B/50B MoE 的 tokens/s、cache hit rate 或端到端可行性。下一阶段应审计真实 expert tensor 的布局、读取粒度、prefetch、缓存和 I/O 与 Metal 计算重叠，而不是继续做通用 SSD 跑分。
