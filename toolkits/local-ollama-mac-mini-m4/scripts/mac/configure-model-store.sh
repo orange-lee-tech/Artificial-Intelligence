@@ -20,7 +20,11 @@ OLD_MODELS="$(launchctl getenv OLLAMA_MODELS 2>/dev/null || true)"
 OLD_HOST="$(launchctl getenv OLLAMA_HOST 2>/dev/null || true)"
 OLD_NO_CLOUD="$(launchctl getenv OLLAMA_NO_CLOUD 2>/dev/null || true)"
 [[ -z "$OLD_MODELS" || "$OLD_MODELS" == "$MODEL_DIR" ]] || die "OLLAMA_MODELS already points elsewhere; inspect first."
-if [[ -d "$DEFAULT_MODEL_DIR" ]] && find "$DEFAULT_MODEL_DIR" -type f -print -quit | grep -q . && [[ "$OLD_MODELS" != "$MODEL_DIR" ]]; then
+DEFAULT_FIRST_FILE=""
+if [[ -d "$DEFAULT_MODEL_DIR" ]]; then
+  DEFAULT_FIRST_FILE="$(find "$DEFAULT_MODEL_DIR" -type f -print -quit 2>/dev/null || true)"
+fi
+if [[ -n "$DEFAULT_FIRST_FILE" && "$OLD_MODELS" != "$MODEL_DIR" ]]; then
   die "Default model directory contains data; refusing to hide or move existing models."
 fi
 [[ ! -e "$BACKUP_FILE" ]] || die "Existing backup found at $BACKUP_FILE; review or roll back first."
