@@ -458,11 +458,71 @@ Moonshot's public model listing contains Kimi Linear 48B-A3B (base/instruct), Ki
 
 1. **P0 primary research target:** Qwen3.5-122B-A10B (10B active), because it best matches the requested model capability/active-parameter target and has a modern hybrid MoE architecture.
 2. **P0 runtime path comparison:** standard MLX 4-bit + streamlx versus TurboQuant-MLX `tq3a-tqTe-g64`. Keep these as separate paths; do not mix quantization/runtime assumptions.
-3. **P2 alternative:** Mistral Small 4 119B-A6.5B for architecture/quality comparison only until a 16GB streaming adapter is demonstrated.
-4. **Kimi Linear 48B-A3B:** retain as an earlier 3B-active comparison model, not the only or final target.
+3. **P1 comparison candidate:** Mistral Small 4 119B-A6.5B; retain it for quality/adapter audit. It is not eliminated; its mistral4 streamlx path is not yet validated.
+4. **Kimi Linear 48B-A3B:** promote to P0/P1 next local MoE pilot because its 3B-active footprint and explicit streamlx family support make it the lower-risk 16GB experiment; keep Qwen3.5-4B installed as fallback/control.
 5. **Qwen3.5-397B-A17B:** above the current 8–10B active target; defer.
 
 **No model was downloaded. No runtime was installed. No local or production configuration was changed.**
+
+## 7C. Corrected comparative decision and routing semantics (2026-11-17)
+
+### Qwen3.5-122B-A10B vs Mistral Small 4: correction
+
+Mistral Small 4 is **not eliminated**. The earlier P2 label overstated the case: Qwen is the P0 target because it exactly matches the user's 8–10B active-parameter preference and has a clearer existing streamlx/Qwen3.5 adapter path, not because a fair head-to-head evaluation proved it universally better.
+
+Verified architecture:
+- Qwen3.5-122B-A10B: 122B total / 10B active; 48 layers; 256 routed experts; top-8 + one shared expert; hidden 3072; expert intermediate 1024; 4-bit MLX checkpoint listed at 69.6 GB.
+- Mistral Small 4: 119B total / 6.5B active; 36 layers; 128 routed experts; top-4 + one shared expert; hidden 4096; expert intermediate 2048; 4-bit MLX checkpoint listed at 67.8 GB; Apache-2.0.
+- Both are recent multimodal text/image models with 256K context and Apache-2.0 weights.
+- Mistral unifies instruction, reasoning, coding/agent and image input; its API exposes configurable reasoning effort. Its official announcement reports improvements against Mistral Small 3 and strong scores against GPT-OSS-120B on selected tasks. These are vendor-reported results, not a same-harness Qwen-vs-Mistral comparison.
+- Qwen's official model card reports MMLU-Pro 86.7, SuperGPQA 67.1, GPQA Diamond 86.6, HLE-CoT 25.3 and SWE-bench Verified 72.0. Those are also publisher-reported. Available public results do not establish a universal winner between Qwen 122B and Mistral Small 4.
+
+Expert compute shape sanity check (derived, not a benchmark): assuming three SwiGLU expert matrices per routed expert:
+- Qwen: 48 × 8 × 3 × 3072 × 1024 = 3.624B routed-expert parameters touched per token across all MoE layers.
+- Mistral: 36 × 4 × 3 × 4096 × 2048 = 3.624B.
+Thus Mistral's top-4 does not imply half the routed-expert matrix work: its expert intermediate width is twice Qwen's. At 4-bit group-64 with estimated scale/bias overhead, both have a shape-derived minimum expert-slot floor around 1.9 GiB. Exact index parsing, layer-specific tensors, shared experts, shell and runtime buffers remain necessary.
+
+Runtime status:
+- streamlx explicitly validates qwen3_5_moe, kimi_linear and laguna; it does not explicitly list mistral4.
+- Mistral's MLX conversion exists (67.8 GB) and uses model_type mistral4, 36 layers, 128 experts and top-4. The existence of an MLX conversion is not proof that its tensor naming, expert bundle layout, quantization metadata and loader path are compatible with streamlx.
+- Therefore Mistral should be **P1 architecture/quality and adapter-audit candidate**, not P2/eliminated. If adapter work passes, it may be a better resource/performance choice for workloads that value lower total active parameters and configurable reasoning. It is not yet the first 16GB pilot because the runtime path is less verified.
+- Qwen remains **P0 8–10B capability target**, with standard MLX+streamlx and separate TurboQuant paths kept distinct.
+
+### Kimi Linear 48B-A3B vs existing Qwen3.5-4B
+
+The installed qwen3.5:4b is a dense 4B model: essentially all 4B parameters participate in each token's forward pass. It is not a 4B-active MoE.
+Kimi Linear 48B-A3B is a sparse MoE: 48B total / 3B active, 27 layers (first dense, 26 MoE), 256 routed experts, top-8 + one shared expert, 20 KDA linear-attention layers + 7 MLA layers. Its inspected MLX 4-bit checkpoint is 27.6 GB and streamlx explicitly lists kimi_linear as a validated family.
+
+For a shape-only routed-expert calculation, Kimi has 26 × 8 × 3 × 2304 × 1024 = 1.472B routed-expert parameters selected across all MoE layers per token. Estimated 4-bit group-64 minimum slot floor from the inspected project report is about 0.77 GiB. This is lower than the rough Qwen/Mistral 1.9 GiB floors, but is not the whole model memory budget and does not establish a measured speed.
+
+Decision:
+- Kimi is a **credible next primary local MoE pilot** and a plausible capability upgrade over the dense 4B baseline, but it is not a physically small model: its 4-bit checkpoint is 27.6 GB and requires expert streaming on 16GB.
+- Do not delete the existing Qwen3.5-4B before Kimi has passed exact checkpoint parsing, short-context single-request correctness, memory/swap safety, latency/throughput and DSH coexistence tests.
+- Keep the 4B weights installed as the fast fallback, control and regression baseline. Stop/unload its runner before a Kimi test; the two model runners must not be resident together in the initial 16GB test.
+- Kimi's MLX/streamlx server is a different runtime path from the existing Ollama Qwen3.5-4B. This is not a direct Ollama model swap. PACS would call the Kimi OpenAI-compatible endpoint once isolated serving is approved and verified.
+
+### Top-k routing: what "full load" means
+
+The current checkpoints use fixed top-k routing:
+- Kimi: every token selects 8 routed experts from 256 in each of its 26 MoE layers, plus the shared expert.
+- Qwen 122B: every token selects 8 routed experts from 256 in each of 48 MoE layers, plus the shared expert.
+- Mistral Small 4: every token selects 4 routed experts from 128 in each of 36 MoE layers, plus the shared expert.
+
+The model router chooses *which* experts based on token hidden states; it does not normally choose to activate only 2–3 experts for an "easy" request. With these checkpoints, the configured top-k is selected for each token. The selected experts are not all 256; it is 8/256 (3.125%) or 4/128 (3.125%) per layer and token. Shared expert execution is additional. Runtime scheduling may serialize or overlap kernels; "selected" does not guarantee simultaneous physical execution.
+
+Manually reducing Kimi's top-k to 2–3 would be a non-reference inference modification. It may reduce expert compute and SSD reads, but can change model quality, instruction following, reasoning and tool-call reliability. Do not enable it by default. If explored later, compare K=2/4/6/8 on a fixed task suite against the unmodified K=8 output and quality baseline.
+
+PACS task-level routing is separate: it can choose the dense 4B model for easy/fast tasks and Kimi for difficult tasks. This preserves each model's trained internal top-k. If only Kimi is retained eventually, simple requests still use its top-8 routing unless a validated variable-top-k implementation is developed.
+
+### "Probability of full load" cannot yet be stated numerically
+
+No PACS workload trace or expert-routing trace exists, so a numeric probability would be fabricated. Separate:
+1. Per-token routing: top-k is fixed as above; not probabilistic whether all top-k slots are selected.
+2. Per-layer expert coverage across many prompt tokens: the union of experts can grow with prompt diversity and length.
+3. Runtime cache saturation: depends on cache budget, route locality, prefill chunk size, prompt history, cache hit rate, prefetch accuracy and eviction.
+4. System memory pressure: depends on shell, expert pool, KV/recurrent state, prefill scratch, MLX/Metal buffers, macOS/DSH, context and concurrency.
+
+For the first 16GB pilot, keep one request/concurrency 1, short context, one model runner, no MTP/draft, and explicit memory-pressure/swap stop conditions. Instrument: unique experts per layer per sequence, expert hit/miss, bytes read per generated token, prefetch hit/waste, cache occupancy, I/O wait, GPU compute, TTFT, decode tokens/s, process footprint, system memory pressure and swap delta. Exercise at least simple Q&A, extraction, long-document, coding/agent and multi-step reasoning tasks. Only this trace can estimate how often actual PACS workloads approach cache or memory saturation.
 
 ## 8. Current recommendation
 
