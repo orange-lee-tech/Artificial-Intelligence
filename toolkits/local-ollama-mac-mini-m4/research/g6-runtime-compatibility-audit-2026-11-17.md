@@ -314,10 +314,10 @@ The 834.7 MiB/s storage baseline is an input to this analysis, not a tokens/s pr
 
 Exact MLX checkpoint:
 - Repository: `mlx-community/Kimi-Linear-48B-A3B-Instruct-4bit`
-- Exact inspected repository revision: `a10c7aa245785079a2b61bf9f9c2038906542856`
+- Current main revision inspected: `919175d75427f1c10cfc17e7254b53295edddf72`
 - Model card: https://huggingface.co/mlx-community/Kimi-Linear-48B-A3B-Instruct-4bit
-- Pinned config: https://huggingface.co/mlx-community/Kimi-Linear-48B-A3B-Instruct-4bit/blob/a10c7aa245785079a2b61bf9f9c2038906542856/config.json
-- Pinned model index: https://huggingface.co/mlx-community/Kimi-Linear-48B-A3B-Instruct-4bit/blob/a10c7aa245785079a2b61bf9f9c2038906542856/model.safetensors.index.json
+- Revision-specific config: https://huggingface.co/mlx-community/Kimi-Linear-48B-A3B-Instruct-4bit/blob/919175d75427f1c10cfc17e7254b53295edddf72/config.json
+- Revision-specific model index: https://huggingface.co/mlx-community/Kimi-Linear-48B-A3B-Instruct-4bit/blob/919175d75427f1c10cfc17e7254b53295edddf72/model.safetensors.index.json
 
 **SOURCE_VERIFIED from model card/config/index and streamlx README:**
 
