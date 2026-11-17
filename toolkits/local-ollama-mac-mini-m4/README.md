@@ -1,7 +1,7 @@
 # Mac mini M4 本地模型部署工具包
 
 **版本：** 0.1.0  
-**状态：** IN PROGRESS — G0 PASS / G1 INSTALLED / G2 APPLIED / G2.1 COPY VERIFIED / G3 FAIL (SERVER USES DEFAULT PATH) / G4–G5 NOT TESTED  
+**状态：** IN PROGRESS — G0 PASS / G1 INSTALLED / G2 APPLIED / G2.1 COPY VERIFIED / G3 FAIL (SERVER CHILD USES DEFAULT PATH; CAUSE UNKNOWN) / G4–G5 NOT TESTED  
 **主机：** Apple Silicon M4，16 GiB 统一内存  
 **运行时：** Ollama macOS 应用  
 **首选模型候选：** qwen3.5:4b-q4_K_M  
@@ -83,7 +83,7 @@ bash scripts/mac/migrate-default-model-store.sh --apply
 
 迁移脚本默认 dry-run。apply 需要在 Terminal 输入 `COPY`；它只将默认模型目录复制到外置目录，逐文件比较验证，**保留原目录，不删除、不覆盖目标已有文件、不重启 Ollama**。复制通过后再启动 Ollama，确认 `ollama list` 能看到模型且外置目录有实际数据。只有完成验证并另行确认后，才考虑清理原目录。
 
-**本机执行记录（2026-11-17）：** `migrate-default-model-store.sh --apply` 已复制 `~/.ollama/models` 到外置目标目录；735 个文件逐文件比较通过，源目录保留。复制前后约 3.8G / 3.7G（du 显示值取整）。重新启动后 `ollama list` 仍识别 `qwen3.5:4b`；外置目录约 3.7G，内置源目录约 3.8G。launchd 环境正确，但监听服务进程环境仍报告 `OLLAMA_MODELS=/Users/liyucheng/.ollama/models`，因此 G3 **FAIL / NOT ACCEPTED**：模型服务仍可能使用内置目录。API 正常，监听仅 `127.0.0.1:11434`，服务进程可见 `OLLAMA_NO_CLOUD=1`。下一步先只读检查 Ollama.app parent、server child、launchd job 和 app settings，再修复实际运行环境。
+**本机执行记录（2026-11-17）：** `migrate-default-model-store.sh --apply` 已复制 `~/.ollama/models` 到外置目标目录；735 个文件逐文件比较通过，源目录保留。外置目录约 3.7G，内置源目录约 3.8G。最新只读进程检查：Ollama.app PID 14156 / PPID 1，环境中的 `OLLAMA_MODELS=/Volumes/SSD/AI-Workspace/models`；子进程 `ollama serve` PID 14157 / PPID 14156，环境中的 `OLLAMA_MODELS=/Users/liyucheng/.ollama/models`。两者均有 `OLLAMA_NO_CLOUD=1`，服务绑定 `127.0.0.1:11434`。`launchctl list` 可见 `com.ollama.ollama` 与 Electron application job；`~/Library/LaunchAgents` 和 `/Library/LaunchAgents` 未发现 Ollama plist。故 G3 **FAIL / NOT ACCEPTED**：父子进程环境不一致，实际模型文件访问路径尚未通过打开文件/日志验证，根因未知。不要删除内置副本、不要重复 pull。下一步只读检查 server open files、Ollama 日志、`~/.ollama/server.json`、应用启动配置；查明子进程环境来源后再做一次受控修复。
 
 回滚：
 ~~~bash
@@ -122,7 +122,16 @@ node scripts/mac/benchmark.mjs
 
 已完成只读可行性评估，结论与实施门槛见 [MoE 专家按需加载与 SSD Streaming 可行性评估](research/moe-ssd-streaming-assessment-2026-11-17.md)。
 
-关键结论：当前 `qwen3.5:4b` 是 dense 4B，不是 MoE；MoE 专家 SSD streaming 是独立的实验推理运行时，不是当前 Ollama 默认能力。先修复 G3，再在隔离环境审计并试跑 30B–35B / 约 3B active 的 MoE。暂不下载 100–200GB 模型。
+关键结论：当前 `qwen3.5:4b` 是 Dense 4B，不含 MoE 专家路由；保留它作为轻量任务模型、故障回退和性能对照，不卸载。35B-A3B 的稀疏激活由模型内部 Router 每 token 选择专家；SSD Streaming Runtime 负责按需读取专家权重并维护有界缓存；PACS Task Router 再决定整项任务调用 4B、MoE 或云端。三层不能混为一谈。先修复 G3，再审计兼容 SSD Streaming 的运行时和 checkpoint。当前公开 `serve-mlx` 文档列出的已测试模型包含 Qwen3.6-35B-A3B-8bit、Qwen3-30B-A3B-4bit、Gemma 4；不能据此宣称 Qwen3.5-35B-A3B 已通过该运行时验证。先用明确列入支持清单的 checkpoint 做隔离 pilot，或先补做 Qwen3.5 兼容性验证。暂不下载 100–200GB 模型。
+
+
+## 当前决策（2026-11-17）
+
+- **保留 Qwen3.5-4B。** 不卸载、不删除内置模型副本；模型文件放在外置 SSD，运行时按任务加载。16GB 统一内存下不得假设 4B 与 MoE 可以同时驻留。
+- **单模型执行槽。** 首轮将 Ollama 4B 与实验 MoE runtime 视为互斥工作负载：一个任务批次完成后卸载/停止当前模型，再切换另一模型；并发=1，避免两个模型争抢统一内存。
+- **MoE 三层机制。** (1) token-level MoE Router 选择当前 token 的 top-k experts；(2) SSD Streaming Runtime 仅把选中的专家权重读入有界内存缓存，trunk/shared weights 与 KV cache 仍占统一内存；(3) PACS Task Router 按任务难度选择 4B / MoE / cloud。
+- **16GB 硬约束。** 模型权重在 SSD 不代表零内存；必须为 macOS、DSH、runtime、非专家 trunk、专家缓存、KV cache 和临时 buffer 留余量。初始采用单请求、短上下文、运行时自动/保守 cache，记录 Memory Pressure、swap、RSS 和 tokens/s；任何持续 swap thrash / memory pressure yellow-red 即停止。
+- **当前不下载 35B。** 先修复 Ollama G3。之后只在隔离目录审计运行时与模型架构的精确兼容性。`serve-mlx` 是 pre-release 单用户 server，公开清单中的 tested checkpoints 与 Qwen3.5-35B-A3B 不能自动等同；不允许仅按“35B-A3B”名称推断兼容。
 
 ## 安全边界
 
