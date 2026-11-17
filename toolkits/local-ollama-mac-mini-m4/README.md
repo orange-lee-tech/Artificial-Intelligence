@@ -152,6 +152,26 @@ node scripts/mac/benchmark.mjs
 
 streamlx 还有一个需注意的默认行为：`STREAMLX_KEEPALIVE` 默认开启，会在 I/O 等待时提交 GPU keepalive 工作；首轮正确性/内存基线应先设置 `STREAMLX_KEEPALIVE=0`，稳定后再进行开关 A/B 测试。 详细报告：[G6 Runtime Compatibility Audit](research/g6-runtime-compatibility-audit-2026-11-17.md)。
 
+## G6.2 — 精确模型兼容性审查（2026-11-17）
+
+**阶段结果：找到强匹配候选，但 G6.2 尚未完全关闭。**
+
+首选候选：`mlx-community/Kimi-Linear-48B-A3B-Instruct-4bit`，模型卡显示 49B 总参数、3B 激活参数、27.6GB MLX safetensors。配置为 `model_type=kimi_linear`，27 层（首层 dense，推导出 26 个 MoE 层），每层 256 个 routed experts、top-8、1 个 shared expert，expert intermediate 1024、hidden 2304；采用 4-bit affine group64，路由 gate projection 为 8-bit。注意力为 20 个 KDA linear-attention 层 + 7 个 MLA full-attention 层。许可证：该 MLX checkpoint 卡片标注 MIT；配置包含 `auto_map`，需留意 custom code。
+
+- MLX checkpoint：<https://huggingface.co/mlx-community/Kimi-Linear-48B-A3B-Instruct-4bit>
+- 本次检查的 checkpoint commit：`a10c7aa245785079a2b61bf9f9c2038906542856`
+- streamlx README 明确将 `kimi_linear` 列为已验证模型家族，且该 checkpoint index 里可见 `model.layers.N.mlp.switch_mlp.{gate_proj,up_proj,down_proj}` 权重、scales、biases 键名，结构上与 streamlx 的 stacked `switch_mlp` 路径吻合。
+
+**重要配置键细节：** Kimi config 使用 `num_experts_per_token`，streamlx 当前 `_routed_topk()` 读取 `num_experts_per_tok`，否则默认 8。此 checkpoint 实际 top-k 恰为 8，所以默认值碰巧正确；后续加载应显式传 `k=8` 或增加配置键兼容检查。
+
+**最低专家池估算（INFERRED，非精确索引测量）：** 以 26 层 × top-8 × 每专家 3 个 2304×1024 SwiGLU 矩阵、4-bit 权重及 group64 FP16 scale/bias 粗算，最低 208 个 slot，约 0.77 GiB。该数值尚未从 pinned safetensors index 完整解析每层真实 byte ranges，不能当作最终精确值。
+
+该模型的 20 个 KDA 层可能有利于 KV/state 增长，但不能据此假定 cache 为零。模型配置的 1M context 也不代表 16GB 可用。
+
+次级候选：Qwen3.6-35B-A3B 4-bit（streamlx 有 32GB M4 Air 测试曲线）；Gemma 4 26B-A4B 8-bit（serve-mlx 有模型适配/测试）；Laguna-S-2.1 117B oQ2e-fast 仅作大模型压力测试，不作为 16GB 首选。
+
+详细证据、计算假设与未完成项见 [G6 Runtime Compatibility Audit](research/g6-runtime-compatibility-audit-2026-11-17.md) 的 G6.2 部分。
+
 ## 安全边界
 
 - API 仅 loopback；禁止 0.0.0.0、LAN、端口转发或公网隧道。
