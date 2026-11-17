@@ -11,8 +11,8 @@ if [[ "$#" -eq 1 ]]; then
   MODE="apply"
 fi
 
-MODEL_VOLUME="\${PACS_MODEL_VOLUME:-/Volumes/SSD}"
-MODEL_DIR="\${PACS_MODEL_DIR:-$MODEL_VOLUME/AI-Workspace/models}"
+MODEL_VOLUME="${PACS_MODEL_VOLUME:-/Volumes/SSD}"
+MODEL_DIR="${PACS_MODEL_DIR:-$MODEL_VOLUME/AI-Workspace/models}"
 SOURCE_DIR="$HOME/.ollama/models"
 
 die() { printf '[BLOCKED] %s\n' "$1" >&2; exit 2; }
