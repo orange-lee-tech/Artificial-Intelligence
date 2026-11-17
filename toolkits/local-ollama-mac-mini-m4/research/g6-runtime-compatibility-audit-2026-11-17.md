@@ -599,7 +599,7 @@ The 120GB/s unified-memory bandwidth specification and 834.7 MiB/s TS900 read re
 Before any large checkpoint download or execution, require all of the following from metadata/source analysis:
 1. Exact pinned Safetensors index and shard-header parse; calculate all expert bundles, shell tensors and non-expert bytes. No file-size-only inference.
 2. Account separately for resident shell, minimum top-k slot floor, proposed cache budget, K/V or recurrent state at 4K and 8K, prefill scratch, MLX/Metal buffers and runtime overhead.
-3. Keep at least 5 GiB as a provisional system reserve for macOS + DSH + background services. This is a PACS engineering policy, not an Apple specification. It is deliberately conservative and informed by the existing 4B runner's 4.3 GiB process peak; the 4B baseline did not test DSH co-residency, so if DSH baseline use requires more, raise the reserve. Therefore the model-side envelope must not exceed 11 GiB under this provisional policy.
+3. Keep at least 5 GiB as a provisional non-model reserve for macOS + DSH + user/agent GUI applications + background services + operating headroom. This is a PACS engineering policy, not an Apple specification or a measured guarantee. Important correction: the existing 4B runner's 4.3 GiB process peak is model-process memory, not evidence for the 5 GiB non-model reserve; count it as a model-side reference only. The 5 GiB is a provisional floor to be checked against a measured idle/DSH/app baseline. If actual non-model use exceeds it, reduce the model budget one-for-one; never assume 11 GiB is always available.
 4. Reject any candidate whose documented or conservatively estimated peak exceeds the model-side envelope, relies on sustained swap, or has an unbounded cache/prefetch path.
 5. For the first eventual controlled serving profile: one model slot, concurrency 1, short context (start 4K), no MTP/draft, bounded expert cache and prefetch, no simultaneous 4B runner, no DSH concurrency claim until static memory accounting supports it.
 6. Treat thermal state as a hard runtime control: Fair reduces speculative prefetch/background work; Serious stops admission of new inference jobs and drains/unloads the current model; Critical aborts inference and cools down. A persistent Serious state is a candidate rejection for unattended sustained service.
@@ -624,6 +624,113 @@ Before any large checkpoint download or execution, require all of the following 
 
 **Conclusion:** 10B active is neither automatically safe nor automatically unsafe. Under the current no-download/no-execution constraint, only static feasibility can be assessed. Qwen 122B remains conditional until exact shell/cache/state accounting passes the 11GiB provisional model envelope. Kimi is the lower-risk first static candidate. No model is certified for sustained power/thermal behavior without a future separately approved, bounded validation; no such validation is requested or performed in this phase.
 
+## 7E. G6-Context — long context, prompt cache, screenshots and agent-app memory gate (2026-11-17)
+
+This section adds context and agent side-effects to the whole-host memory envelope. It is a source-based estimate and policy proposal; no local runtime, screenshot workload or GUI-agent stress test was run.
+
+### Context is not one memory number
+
+Separate these resources:
+1. **Serialized prompt/history:** text, tool outputs, structured state and multimodal input passed to the model.
+2. **Active attention/recurrent state:** MLA KV cache and KDA recurrent/convolution state for the active sequence.
+3. **Prompt/prefix cache:** retained computed state to avoid repeating prefill. This is a performance cache, not semantic compression; it consumes RAM or SSD.
+4. **Prefill scratch and MLX/Metal buffers:** temporary memory while ingesting long prompts. Peak can exceed steady decode cache.
+5. **Vision path:** decoded pixels, crops/patches, image embeddings and encoder activations. Compressed screenshot file size is not its working-memory size.
+6. **Agent applications:** browser tabs, IDEs, terminal, file viewers, automation host and other processes opened or kept alive by the agent.
+
+Whole-host accounting must include all six, plus macOS, DSH and user applications. Model-process RSS alone is insufficient: the PACS 4B baseline recorded about 200 MiB ps RSS while vmmap reported a 4.3 GiB physical-footprint peak for the MLX runner.
+
+### Kimi Linear context-state estimate
+
+The pinned Kimi config identifies 20 KDA layers and 7 MLA full-attention layers, with kv_lora_rank=512 and qk_rope_head_dim=64. The model card declares a 1,048,576-token context limit, but this is a model capability/configuration field, not a 16 GiB host guarantee.
+
+Assuming the MLA cache stores 512 latent KV values plus 64 RoPE-key values per token per MLA layer, at FP16/BF16 (2 bytes/value), the architecture-derived cache slope is:
+
+7 × (512 + 64) × 2 = 8,064 bytes/token
+
+| Active sequence length | Estimated MLA cache |
+|---:|---:|
+| 4K | 31.5 MiB |
+| 8K | 63 MiB |
+| 16K | 126 MiB |
+| 32K | 252 MiB |
+| 64K | 504 MiB |
+| 128K | 0.984 GiB |
+| 256K | 1.969 GiB |
+| 512K | 3.938 GiB |
+| 1,048,576 | 7.875 GiB |
+
+KDA recurrent matrix state is fixed with sequence length. Using 20 layers × 32 heads × 128 × 128 state elements gives 20 MiB at 16-bit or 40 MiB at 32-bit, plus short-convolution state. Actual runtime state dtype/layout must be checked before treating this as an exact number.
+
+These estimates omit allocator padding, cache metadata, prefill scratch, vision buffers, model shell and expert pool. The 1M model limit must not be used as the PACS context setting: at 16-bit MLA-cache assumptions the cache alone is 7.875 GiB, before every other runtime and host process.
+
+### Prompt caching is not context compression
+
+- **Semantic compaction** shortens the active prompt: produce a structured state summary, preserve the full event log/artifacts externally, start a new shorter sequence and rebuild the model state from the compact prompt. It trades some verbatim history for a smaller active context.
+- **Prefix/prompt caching** retains computed KV/recurrent state to avoid recomputing an unchanged prefix. It does not shorten the prompt or erase its state memory.
+- **Disk prompt cache** can reduce retained RAM but adds SSD I/O and disk use. streamlx documents a byte-capped RAM prompt-cache LRU and an optional segmented SSD cache (kv-cache-dir, bounded by kv-cache-gib). The PACS TS900 is also the expert-weight source, so using it for prompt-cache reads/writes may contend with expert streaming; this must be benchmarked, not assumed free.
+- streamlx's paged cache stores ordinary token-sliced KV cache segments, but recurrent ArraysCache layers store their whole state at segment ends. Hybrid recurrent/attention caches therefore restore only at segment boundaries rather than arbitrary token divergence. Kimi's exact cache adapter, compaction/restart behavior and branch handling require source-level and later isolated correctness audit.
+- streamlx also documents byte-capped prompt-cache and MLX allocator caches, memory-gib expert-pool resizing as the sequence cache grows, and prefill-memory-gib to bound prefill extras. These are useful mechanisms, not proof that every Kimi path is safe. The exact defaults and Kimi support must be pinned and reviewed before use.
+- Quantized KV, rotating/sliding cache or reduced context are potential controls only after confirming they support Kimi's hybrid KDA+MLA cache and preserve quality. Do not silently truncate or quantize state in the first correctness baseline.
+
+### Screenshot and visual-input policy
+
+The inspected Kimi Linear checkpoint is a text-generation model (KimiLinearForCausalLM) and its config has no vision tower; treat it as text-only. The existing Qwen3.5-4B checkpoint is a vision-language model with a vision encoder. Therefore:
+1. Prefer the OS accessibility tree, app semantics and OCR/text extraction before invoking a vision model.
+2. Capture a screenshot only when layout/visual state cannot be established from structured UI data.
+3. Capture the smallest relevant region; downscale where legibility allows. For small text, crop the relevant region instead of sending the entire high-resolution desktop.
+4. Keep only the current screenshot and, if required, one comparison frame. Do not retain a rolling gallery in active prompt memory.
+5. Release image buffers after extraction; retain only the derived text, image hash/path and task-relevant evidence in the event log.
+6. If visual understanding is necessary, route through a vision-capable model as a separate stage, then unload it before Kimi. Do not keep Qwen3.5-4B and Kimi simultaneously resident under the single-model-slot policy.
+7. Exact image-token count and vision peak are processor/model/resolution dependent. They must be obtained from the exact image processor and runtime; do not infer them from JPEG/PNG file size.
+
+A decoded 3840×2160 RGBA screenshot occupies about 31.6 MiB before crops, resized copies, patches, embeddings or vision activations. Ten such decoded frames would be about 316 MiB just for the pixel buffers. This is an arithmetic illustration, not a measured Qwen/MLX vision footprint.
+
+### Agent application and tool-output controls
+
+- Count browser, IDE, terminal, file viewer, automation host and child processes opened by the agent as part of the whole-host budget.
+- Use one browser session and only the tabs/windows needed for the active task; avoid duplicate app instances, background polling and unattended GUI loops.
+- Track agent-owned process IDs and opened tabs. The agent may close only resources it created for the task; never terminate user-owned apps or unrelated processes automatically.
+- Capture process physical footprint/VM accounting and system memory pressure; do not use ps RSS as the sole measure for Metal/MLX workloads.
+- Parse command output into relevant fields. Keep large logs, HTML, source dumps and screenshots as bounded files/artifacts with hashes and references; place only concise extracts in the active prompt.
+- Do not repeatedly inject the same page, full log or screenshot into every turn. Retrieve relevant slices on demand.
+
+### PACS context-compaction protocol (proposed)
+
+Maintain a small active working set and a durable external record:
+1. **Stable policy layer:** permissions, safety rules, model routing, network boundary and non-negotiable project decisions.
+2. **Task capsule:** objective; current phase; exact current state; decisions; completed actions and evidence; files/commit SHAs; pending steps; blockers; explicit non-actions/authorization boundaries.
+3. **Recent working window:** only the most recent turns and tool outputs needed for the immediate next step.
+4. **Retrieval archive:** append-only event log, full tool outputs, documents and screenshots on disk/GitHub; fetch exact slices when required.
+
+When compaction is triggered, generate a structured summary rather than a generic narrative. Preserve numbers, paths, hashes, process IDs only while still relevant, test outcomes, source references, safety constraints and user approvals verbatim where exactness matters. Do not summarize away permissions or mark unverified actions as complete. Re-tokenize the compacted prompt into a fresh request/cache; the old active sequence cache can then be released at a safe point.
+
+Initial policy proposal:
+- Start the first controlled model profile at 4K context, concurrency 1; raise to 8K only after the static memory budget passes. Treat 16K+ as a new memory/pre-fill gate, not an automatic next step.
+- Soft compaction at 70% of the configured prompt-token budget; mandatory compaction before 85%. Reserve the remainder for tool results and output. These are PACS policy thresholds, not model/runtime defaults.
+- Trigger earlier if whole-host memory pressure rises, MLX active+cache+peak approaches its working-set cap, swap begins increasing during the task, agent-app footprints expand, or screenshot/tool-output queues exceed their byte limits.
+- Under pressure: stop admitting new tasks; stop background polling and speculative prefetch; release agent-created screenshot/image buffers and stale tabs; compact or evict prompt cache; shrink expert pools only at runtime-safe points; if still unsafe, reject the request and unload the model. Do not rely on swap as extra model capacity.
+- Keep the full audit/event record outside the active context. Context summaries are working memory, not the sole source of truth.
+
+### Whole-host memory equation
+
+16 GiB = macOS + DSH + user apps + agent apps + model shell + expert pool + KDA/MLA state + prompt cache + prefill scratch + vision buffers + runtime/allocator + uncommitted headroom
+
+The 5 GiB non-model reserve is a provisional floor, not a fixed measurement. The 11 GiB model-side ceiling applies only when the non-model reserve is actually respected; if browser/IDE/vision/other applications consume more, reduce the model-side budget by the same amount. Do not allocate 11 GiB to the model and then treat GUI apps as free.
+
+### G6-Context status
+
+| Item | Status |
+|---|---|
+| Kimi MLA cache slope from public config | SOURCE-DERIVED estimate |
+| KDA fixed-state size | SHAPE estimate; dtype/layout pending |
+| 1M context suitability on 16 GiB | NOT ACCEPTED; cache alone ~7.875 GiB at 16-bit |
+| streamlx prompt cache / disk cache semantics | SOURCE AUDITED |
+| Kimi hybrid cache segment/branch behavior | PARTIAL; exact adapter correctness pending |
+| Screenshot/vision peak | NOT MEASURED; route policy defined |
+| Agent app process budget | POLICY DEFINED; host measurements pending |
+| Context compaction thresholds | PROPOSED; not runtime implemented |
+
 ## 10. G6 status
 
 | Gate | Status | Evidence |
@@ -633,6 +740,8 @@ Before any large checkpoint download or execution, require all of the following 
 | G6.3 16 GiB memory envelope | NOT TESTED | No target runtime executed on this host |
 | G6.4 TS900 runtime-level I/O overlap | NOT TESTED | Only generic SSD benchmark exists |
 | G6-Safety static power/thermal envelope | PARTIAL / SOURCE-BASED | Apple specifications and third-party stress review; no PACS workload measurement |
+| G6-Context prompt/KDA/MLA accounting | PARTIAL / SOURCE-BASED | Kimi config and streamlx cache code inspected; no local runtime measurement |
+| G6-Context screenshots/agent applications | POLICY DEFINED / NOT MEASURED | Qwen vision vs Kimi text-only routing; no GUI-agent stress test |
 | Runtime installation | NOT AUTHORIZED IN THIS PHASE | No installation performed |
 | Large model download | NOT AUTHORIZED IN THIS PHASE | No model downloaded |
 | Ollama / DSH production configuration | UNCHANGED | No production configuration modified |
