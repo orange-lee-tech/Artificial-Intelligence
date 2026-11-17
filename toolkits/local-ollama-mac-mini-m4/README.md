@@ -194,13 +194,25 @@ streamlx 还有一个需注意的默认行为：`STREAMLX_KEEPALIVE` 默认开�
 - Kimi Linear 是 20 层 KDA + 7 层 MLA 的混合注意力模型。按 16-bit MLA cache 假设，cache 斜率约 8,064 bytes/token：4K=31.5MiB、8K=63MiB、128K=0.984GiB、256K=1.969GiB、1M=7.875GiB。KDA recurrent state 对序列长度固定，但实际 dtype/layout 仍需核验。1M 是模型配置上限，不是 16GB Mac mini 的安全运行承诺。
 - 语义压缩与 Prompt Cache 必须区分：语义压缩生成结构化任务摘要、保存原始事件记录、以短 prompt 重建上下文；Prompt/Prefix Cache 只复用已计算状态，不会缩短上下文，反而占 RAM 或 SSD。
 - streamlx 支持有字节上限的 RAM prompt-cache LRU 和可选 SSD 分段 KV/prompt cache；TS900 同时承载专家读取，SSD cache 可能造成 I/O 竞争。Kimi 混合缓存的 recurrent state 只能在 segment 边界恢复，精确 Kimi 分支/回滚行为仍需验证。
-- Kimi Linear checkpoint 按当前模型配置视为 text-only；截图应优先走 Accessibility Tree/OCR。必须视觉理解时，使用 Qwen3.5-4B 视觉路径作为独立阶段，完成后卸载，再交给 Kimi 做文本推理；不允许两个模型同时驻留。
+- 模型角色必须区分：Qwen3.5-122B-A10B 是 P0 主力能力研究目标，模型本身支持图像输入；Mistral Small 4 也支持图像输入；Kimi Linear 48B-A3B 是 text-only 的低风险 MoE streaming 试验候选，不是整个 PACS 最终视觉助手的默认替代品。
 - 4K 解码 RGBA 截图约 31.6MiB/帧，十帧约 316MiB，尚未包含 crop、patch、vision tensor 和 encoder activation。截图只保留当前帧及必要的比较帧，优先 ROI crop，抽取完成后释放图像缓冲。
 - 浏览器、IDE、终端、文件查看器和 Agent 自动化宿主都属于整机内存预算。Agent 只能关闭自己创建的 Tab/应用，不自动终止用户进程。监控 Metal-aware process footprint 和系统内存压力，不能只看 RSS。
 - 初始建议：4K context、并发 1；达到配置 prompt token budget 的 70% 开始语义压缩，85% 前强制压缩；系统内存压力、Swap 增长、Agent 应用 footprint 或截图队列异常时提前压缩/拒绝请求。该阈值是 PACS 提案，不是 Runtime 默认值。
 - 完整内存方程：macOS + DSH + 用户应用 + Agent 应用 + model shell + expert pool + KDA/MLA state + prompt cache + prefill scratch + vision buffers + runtime/allocator + uncommitted headroom ≤ 16 GiB。
 
 详见 [G6 Runtime Compatibility Audit / G6-Context](research/g6-runtime-compatibility-audit-2026-11-17.md)。
+
+### G6-Vision & App Integration — 截图理解与 Office 工作流
+
+- Qwen3.5-122B-A10B 的模型本身有 Vision Encoder，MLX 4-bit 模型卡提供 mlx-vlm 图像输入示例；Mistral Small 4 也支持图像输入。Kimi Linear 48B-A3B 是 text-generation/text-only checkpoint。
+- **模型支持视觉 ≠ 当前 Streaming Runtime 支持视觉。** streamlx README 对 MLX-VLM 的说明明确是 text-only exports；Qwen 122B 完整 vision tower + image processor + SSD expert streaming 链路尚未通过端到端验证。Mistral Small 4 的 mistral4 adapter/视觉路径同样未验证。
+- 已安装 Qwen3.5-4B 的模型架构有 Vision Encoder，但当前 Ollama 版本 + 本地模型 artifact 的图像请求尚未在本机做 smoke test，不能仅凭模型卡宣布可用。
+- 截图理解范围只要求桌面截图：Accessibility Tree/OCR 优先；视觉模型仅处理 OCR 不足、布局/图标/对话框有歧义的 ROI。输出紧凑结构化观察，再交给主模型；处理后释放图像缓冲。
+- 16GB 初期维持单模型槽。若 Qwen3.5-4B 做视觉、Kimi 做推理，必须顺序执行、先释放视觉 Runner，再加载 MoE；不得假设两个模型同时驻留。若未来 Qwen 122B + streamlx 完整视觉路径通过验证，则可以由主模型直接看图。
+- PPT/图表/流程图优先生成可编辑 PPTX：模型给出大纲和结构化内容，python-pptx/PptxGenJS 或已安装 Office/Keynote/LibreOffice 的受支持 API/CLI/AppleScript/MCP 接口负责创建与导出。只在需要时渲染单页进行视觉 QA；不把普通 PPT 制作升级成视频、扩散模型或复杂图像生成任务。
+- 应用集成不会让应用内存归零。浏览器、Office、IDE 和自动化宿主都计入整机预算；优先确定性/无头生成，避免重复启动应用实例。
+
+详细验收标准、模型能力/Runtime 区分及来源见 [G6 Runtime Compatibility Audit / G6-Vision](research/g6-runtime-compatibility-audit-2026-11-17.md#7f-g6-vision--app-integration--screenshot-understanding-and-office-workflows-2026-11-17)。
 
 ## 安全边界
 
