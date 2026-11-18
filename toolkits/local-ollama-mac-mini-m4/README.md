@@ -156,7 +156,7 @@ streamlx 还有一个需注意的默认行为：`STREAMLX_KEEPALIVE` 默认开�
 
 **能力目标 P0：Qwen3.5-122B-A10B（122B 总参数 / 10B active）。** 这符合 8–10B active 的研究偏好，但尚未在本机运行；标准 MLX 4-bit checkpoint 约 69.6GB，streamlx 家族匹配较明确，16GB 内存包络和实际吞吐未测试。
 
-**下一项本地 MoE pilot 候选：Kimi Linear 48B-A3B。** 48B 总参数 / 3B active，MLX 4-bit checkpoint 27.6GB；27 层中首层 dense、26 层 MoE，每层 top-8/256 routed experts + 1 shared expert；20 KDA linear-attention + 7 MLA 层。streamlx 明确列出 kimi_linear，形状推算最低 expert pool 约 0.77 GiB（非完整模型内存、非实测）。需先完成精确 Safetensors index / shell / state / memory audit。
+**下一项本地 MoE pilot 候选：Kimi Linear 48B-A3B。** 48B 总参数 / 3B active，MLX 4-bit checkpoint 27.6GB；27 层中首层 dense、26 层 MoE，每层 top-8/256 routed experts + 1 shared expert；20 KDA linear-attention + 7 MLA 层。MLX-LM v0.32.1 的 KimiSparseMoE 使用 stacked `switch_mlp`，与 streamlx 通用 wrapper 结构匹配（不是 streamlx 明确列出的端到端验证模型）；2026-11-18 精确 header audit 得到最低 top-8 expert pool 0.771240 GiB。非 routed 张量为1.063068GiB；KDA/MLA状态源代码核算约0.073GiB/4K。仍需测量运行时 shell、转换 scratch 和整机内存峰值。
 
 **比较候选 P1：Mistral Small 4。** 119B 总参数 / 6.5B active，36 层、128 routed experts、top-4 + 1 shared expert，expert intermediate 2048；4-bit MLX checkpoint 约 67.8GB，Apache-2.0。它没有被 Qwen 在能力上淘汰：Mistral 统一 instruct、reasoning、coding/agent 与图像输入，并支持 reasoning_effort。Qwen 是 P0 的原因是更符合 8–10B active 目标且 streamlx 的 qwen3_5_moe 路径更明确；Mistral 的 mistral4 MLX expert layout / adapter 尚未验证，应保留 P1，不应标成淘汰。Qwen 与 Mistral 的发布方基准不是同一测试设置，当前不能宣称谁在全部任务上胜出。
 
@@ -266,7 +266,7 @@ Full decision matrix, context policy, local permissions, node roles and source r
 - **结论：条件性静态可行，不是安全 PASS。** Kimi Linear 48B-A3B + Granite 4.0 H-Tiny 4-bit 双模型同时驻留、但全局推理并发=1，目标账本约 **9.09 GiB model-side**；另预留5 GiB macOS/DSH/应用空间和1.5 GiB未承诺安全余量，计划总量约 **15.59 GiB**，仅余0.41 GiB额外空间。
 - Kimi：26 MoE层、top-8；2026-11-18 对 pinned Safetensors index + 六个 shard headers 完成精确核算：每专家3,981,312B，top-8最低槽位828,112,896B（0.771240GiB）；非 `switch_mlp` 张量共1,141,460,992B（1.063068GiB）。后者是 checkpoint trunk tensor payload，不等于包含 MLX/Metal/临时转换的实测 shell 峰值。首轮专家池暂定2GiB目标。
 - Granite：4-bit模型卡显示3.91GB（3.64GiB）。按40层、64专家、top-6、hidden1536、expert intermediate512，shape-derived全专家权重约3.164GiB，shell余量约0.477GiB。标准MLX-LM路径按全部3.64GiB常驻；active专家约0.297GiB已包含在全模型权重中，不得重复相加。
-- 4K状态估算：Kimi约0.06GiB（MLA KV + KDA recurrent state）；Granite约0.06GiB（Mamba2 state + attention KV）。状态不是主要内存成本。
+- 4K状态估算：Kimi约0.073GiB（MLA KV + FP32 KDA recurrent state + 短卷积状态，源代码推导）；Granite约0.06GiB（Mamba2 state + attention KV，形状估算）。状态不是主要内存成本。
 - 初始硬帽：Kimi pool 2GiB；allocator cache总计0.5GiB；prompt cache总计0.25GiB；runtime bases总计0.8GiB；活动模型scratch/startup peak 0.75GiB；MTP/draft关闭。
 - 两模型同时推理/同时Prefill为 **NO-GO**。双模型同时驻留只在实际非模型基线≤5GiB、model-side峰值≤9.5GiB、并保留≥1.5GiB headroom时才准入；任一超限则拒绝双驻留。
 - Granite MLX checkpoint 的完整 immutable revision、Safetensors index/header 和 H-Tiny/H-Micro 模型树元数据不一致仍待核对；不下载、不安装、不执行。Kimi index/header 精确解析已于2026-11-18完成，但该双驻留研究不构成当前部署目标。**G6.3仍为PARTIAL / STATIC ONLY。**
@@ -313,3 +313,6 @@ The Kimi-only provisional 2/3/4 GiB pool envelope and exact byte audit are recor
 **Current execution policy remains one large local model at a time.** The installed Qwen3.5-4B remains a sequential fallback/control, not co-resident with Kimi. The historical Kimi + Granite dual-resident ledger is not an approved deployment target.
 
 No model download, runtime installation, model execution or production configuration change was performed.
+
+
+**下一项只读审计：** [Kimi shell breakdown audit](scripts/mac/g6.2-kimi-shell-breakdown.py)，对1.063068GiB非routed张量按模块分类，并精确列出MLA `kv_b_proj` sanitizer输入；仍只读取HTTP Range headers，不下载权重。
