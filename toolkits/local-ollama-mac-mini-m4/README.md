@@ -273,3 +273,23 @@ Full decision matrix, context policy, local permissions, node roles and source r
 
 详细张量分类、公式、逐项预算、运行限制和待关闭问题：[G6 Runtime Compatibility Audit / 7K Dual-resident audit](research/g6-runtime-compatibility-audit-2026-11-17.md#7k-kimi-linear--granite-h-tiny-dual-resident-static-memory-audit-2026-11-18)。
 
+
+
+## 2026-11-18 — Host operational baseline and next read-only audit
+
+The user captured the host with DSH and desktop applications running and no Ollama model resident:
+
+- Mac mini `Mac16,10`, macOS 26.2 build `25C56`, 16 GiB unified memory.
+- `memory_pressure` reported 57% system-wide free percentage.
+- Current swap used 470.50 MB; this is a point-in-time value, not proof of ongoing swap thrashing.
+- No thermal or performance warning was recorded.
+- TS900: 946 GiB available.
+- Ollama `/api/ps`: `{"models":[]}`.
+
+This is an operational desktop baseline, not a stripped-down idle baseline. Do not translate the 57% figure directly into model-allocatable memory. The second time-separated sample must establish swap and compressor trends before a hardware pilot.
+
+Evidence: [Host Operational Baseline](reports/host-operational-baseline-2026-11-18.md).
+
+Next read-only source task: run [G6.2 Kimi header audit](scripts/mac/g6.2-kimi-header-audit.py). The script pins `mlx-community/Kimi-Linear-48B-A3B-Instruct-4bit@919175d75427f1c10cfc17e7254b53295edddf72`, reads only the small config/index and Safetensors headers via HTTP Range, validates exact index-to-header key coverage, and calculates exact routed-expert bytes, non-expert tensor bytes, and per-layer top-8 slot floor. It fails closed if the server does not confirm partial-content responses. It does not download tensor payloads, install packages, or change local configuration.
+
+**No model load, runtime installation, or checkpoint download is authorized by this baseline.**
