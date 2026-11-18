@@ -1073,3 +1073,71 @@ Sources inspected:
 | Ollama / DSH production configuration | UNCHANGED | No production configuration modified |
 
 **G6 remains IN PROGRESS. Source-level audit is not hardware compatibility or deployment acceptance.**
+
+## 7J. PACS model-stack decision framework (2026-11-18)
+
+This section separates the small-model decision from the primary MoE decision. The prior Qwen3.5-9B discussion is a *small dense model replacement option*; it does not supersede or eliminate the 48B-class MoE track.
+
+### Small model: retain Qwen3.5-4B for now
+
+- The installed `qwen3.5:4b` remains the measured local baseline/control/fallback: 4.1GB artifact; warm generation about 27.8 tok/s; runner vmmap physical-footprint peak about 4.3GiB; post-inference system free percentage around 37%; swap usage about 1.49GB. These are historical host measurements, not a DSH-concurrent safety pass.
+- Do not replace or delete it merely because Qwen3.5-9B exists. The 9B dense MLX model is an optional small-model upgrade only if a fixed PACS task suite demonstrates a meaningful quality gain and its memory/switching cost is justified.
+- The installed 4B model is vision-capable at the model-architecture level, but the exact installed Ollama artifact/API image request remains untested. Verify this before buying the complexity of a separate visual model.
+- Keep one execution slot on the 16GiB Mac: do not assume 4B and a large MoE can remain resident together.
+
+### Primary MoE and multimodal candidates
+
+1. **Kimi Linear 48B-A3B — P0 text-first MoE pilot candidate.**
+   - 48B total / 3B active; 27 layers (first dense, 26 MoE); 256 experts, top-8 + one shared; 20 KDA linear-attention + 7 MLA layers.
+   - Exact MLX 4-bit candidate: `mlx-community/Kimi-Linear-48B-A3B-Instruct-4bit@919175d75427f1c10cfc17e7254b53295edddf72`, 27.6GB.
+   - streamlx explicitly lists `kimi_linear` as validated. Shape-derived minimum expert pool ≈0.77GiB; Kimi's hybrid cache is favorable for long context. Exact index byte accounting, shell size, KDA/MLA runtime cache behavior and 16GiB hardware peak are still open.
+   - Text-generation-only checkpoint: no native image input. Pair with OCR/accessibility or a sequential/remote vision helper.
+2. **Qwen3.6-35B-A3B — P0/P1 multimodal MoE comparison.**
+   - 35B total / 3B active; 40 layers; 256 experts, 8 routed + one shared; hybrid Gated DeltaNet/full attention; native vision encoder and image input.
+   - streamlx validates the `qwen3_5_moe` family. Its README reports 22.1GB 4-bit model and M4 MacBook Air 32GB results, which are not transferable to this 16GB Mac mini.
+   - Current serve-mlx / mlx-moe-stream documentation provides a Qwen3.6 vision profile for 16GB Macs (no resident expert cache, scratch reserve, quantized KV, short prefill); this is a documented starting configuration, not a PACS M4 mini hardware pass. Treat this as the strongest all-in-one multimodal comparison, with exact pinned checkpoint + vision + memory validation still required.
+   - Shape-only expert-pool floor estimate using 40 × top-8 × 3 × 2048 × 512 and affine 4-bit group-64 scale/bias assumptions is ≈0.53GiB; this is not index-parsed and excludes vision/runtime buffers.
+3. **Qwen3.5-122B-A10B — P1 stretch capability target.**
+   - 122B total / 10B active; 48 MoE layers, 256 experts, top-8 + shared; native vision encoder.
+   - Standard MLX 4-bit checkpoint is listed at 69.6GB; streamlx family support exists. Shape-derived minimum expert pool ≈1.90GiB; first-order static accounting leaves ≈3.7GiB for runtime/scratch if pool is capped at 3GiB and the provisional 5GiB non-model reserve is respected.
+   - This is plausible for a tightly bounded text-first single-request study, not approved for sustained DSH + GUI + vision concurrency. Full vision + SSD expert-streaming path and exact pinned checkpoint remain unverified.
+   - A separate TurboQuant-MLX path has third-party reported ~2.1 tok/s, ~82% hit rate and ~11.3GiB peak with 8GiB cache on a 16GiB M4 mini. This is not a PACS result, has little whole-host headroom, and is a distinct runtime/quantization path from standard MLX+streamlx.
+4. **Mistral Small 4 — P1 adapter/quality audit, not eliminated.**
+   - Mistral officially describes 119B total / 6B active in MoE (about 8B including embeddings/output), 128 experts with top-4, 256K context, image input, reasoning/coding/agent capabilities.
+   - Existing PACS static shape analysis finds routed expert matrix work comparable to Qwen 122B despite top-4, because its expert intermediate width is larger; rough minimum pool ≈1.9GiB.
+   - streamlx does not explicitly list `mistral4`; a custom adapter/tensor-layout audit is required before considering a 16GiB pilot. It remains a valid comparison candidate, not a current deployment candidate.
+5. **Qwen3.5-397B-A17B / Kimi K2/K3 / Kimi-Dev-72B — defer or reject for this role.** They either exceed the active-parameter envelope, or are not a modern sparse Kimi Linear sibling. No Moonshot-published ~70B-total / 8–10B-active Kimi Linear sibling was identified in the inspected catalog; Kimi-Dev-72B is a dense Qwen2.5-derived coding model, not a like-for-like sparse replacement.
+
+### Critical routing semantics
+
+- Model-internal top-k is fixed by the checkpoint for each token: Kimi and Qwen select 8 routed experts per MoE layer; Mistral Small 4 selects 4. The router chooses *which* experts, not usually *how many* based on task difficulty.
+- Do not manually reduce top-k to 2–3 as a default optimization; that changes reference inference and may degrade reasoning/tool calls. PACS should route easy tasks to the small model/tools and hard tasks to the MoE model instead.
+- No numeric probability of cache saturation/full-load can be claimed without PACS workload traces. Measure unique experts/layer, hit/miss, bytes read/token, prefetch hit/waste, cache occupancy, I/O wait, GPU compute, TTFT, tok/s, whole-host memory pressure and swap.
+
+### Whole-host constraints and context/cache policy
+
+- Mac mini: M4, 16GiB unified memory, macOS 26.2; TS900 1TB USB/APFS. PACS measured non-zero uncached sequential read 834.7MiB/s, 4KiB QD1 5,492 IOPS, 64KiB QD1 2,984 IOPS. These are storage inputs, not model tokens/s.
+- Keep a provisional 5GiB reserve for macOS, DSH, user/agent apps and operating headroom; model-side ceiling is at most 11GiB only while the measured non-model baseline remains ≤5GiB. Budget shell + expert pool + KDA/MLA or KV state + prompt cache + prefill scratch + vision buffers + MLX/Metal runtime/allocator. Reduce model budget one-for-one if actual non-model use exceeds the reserve.
+- Start 4K context, concurrency 1, one model process; no co-resident 4B runner; no browser/Office/GUI-agent concurrency in the first memory pilot; no MTP/draft. Increase to 8K only after static and measured gates pass.
+- Separate **prompt-prefix cache** from **expert-weight cache**. Prefix-cache reuse requires a stable identical prefix; keep system policy/tool schemas stable and append task-specific content. Semantic compaction shortens active history but is not itself a cache hit. Expert cache hit depends on route locality, pool size, task distribution, prefetch and eviction; measure it separately.
+- Proposed compaction policy: soft at 70%, mandatory before 85% of configured prompt budget. Preserve a structured task capsule (goal, phase, facts, decisions, permissions, evidence refs, completed/pending work); archive full logs/screenshots outside the prompt. OCR/accessibility first, screenshot ROI only, one current image, release pixel/image tensors after extraction.
+- SSD-backed prompt cache and expert reads share TS900 bandwidth; benchmark contention before enabling both aggressively.
+- Disable `STREAMLX_KEEPALIVE`, MTP/draft and speculative prefetch for the first correctness/safety baseline. Only enable one feature at a time after baseline.
+- Thermal gate: do not set unsupported watt/temperature limits. Observe macOS thermal state; Fair reduces background/prefetch, Serious stops new jobs and drains the request, Critical aborts inference/cools down. Sustained Serious is not acceptable for unattended service.
+
+### Local device access and secondary nodes
+
+- Model weights do not grant desktop permissions. A PACS tool broker/agent host should expose scoped file, terminal, browser, Accessibility, Screen Recording and app-automation tools with explicit macOS TCC grants, allowlists, logs and confirmation for destructive/high-impact actions. Do not give the model unrestricted root/arbitrary shell; tool host enforces permissions.
+- F117: Intel i7-7700HQ 4C/8T, 32GB DDR4-2400, GTX 1050 Ti 4GB, separate 1TB HDD plus TS900 SSD. It cannot pool its RAM/VRAM with the Mac or run MLX/Metal. A direct Ethernet link can stabilize RPC but does not increase Mac unified memory. Initial role: independent OCR/file-processing/tool node; later test a small quantized helper with CPU/partial-GPU offload only after Pascal/CUDA/runtime compatibility check. Do not assign it the primary 48B/122B streaming model.
+- T470s: i5-6300U 2C/4T, 20GB DDR4, Intel HD 520 only; use as administration/client endpoint, not an inference node.
+
+### Proposed selection, not deployment approval
+
+- Keep Qwen3.5-4B installed.
+- Primary text MoE pilot: Kimi Linear 48B-A3B.
+- Parallel all-in-one vision/MoE comparison: Qwen3.6-35B-A3B.
+- Stretch target: Qwen3.5-122B-A10B after 48B/35B gates and workload trace.
+- Mistral Small 4 stays in adapter/quality audit.
+- Qwen3.5-9B remains optional small-model replacement only; not the primary MoE model.
+- No model download, runtime installation, hardware execution or production configuration change is authorized by this strategy section.
+
