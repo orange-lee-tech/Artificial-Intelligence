@@ -146,9 +146,16 @@ def main():
             non_expert_bytes += size
 
     moe_layers = sorted(layer_bytes)
-    if len(moe_layers) != 26:
+    first_moe = int(cfg.get("first_k_dense_replace", 1))
+    expected_layers = list(range(first_moe, int(cfg["num_hidden_layers"])))
+    if moe_layers != expected_layers:
         raise RuntimeError(
-            f"expected 26 streamed MoE layers, found {len(moe_layers)}: {moe_layers}"
+            f"expected MoE layers {expected_layers}, found {moe_layers}"
+        )
+    all_switch_names = [n for n in all_tensors if ".switch_mlp." in n]
+    if len(all_switch_names) != expert_tensor_count:
+        raise RuntimeError(
+            "unclassified switch_mlp tensor names exist; refusing to undercount experts"
         )
     top_k = int(cfg["num_experts_per_token"])
     floor_bytes = sum(top_k * layer_bytes[layer] for layer in moe_layers)
@@ -162,6 +169,9 @@ def main():
     print(f"tensor_payload_bytes_total={tensor_bytes_total}")
     print(f"routed_expert_tensor_count={expert_tensor_count}")
     print(f"routed_expert_tensor_bytes={expert_bytes}")
+    print(f"routed_moe_layer_count={len(moe_layers)}")
+    print(f"per_layer_expert_bundle_min_bytes={min(layer_bytes.values())}")
+    print(f"per_layer_expert_bundle_max_bytes={max(layer_bytes.values())}")
     print(f"non_expert_tensor_bytes={non_expert_bytes}")
     print(f"routed_expert_bytes_per_selected_token_topk{top_k}={floor_bytes}")
     print(f"total_GiB={tensor_bytes_total / 1024**3:.6f}")
