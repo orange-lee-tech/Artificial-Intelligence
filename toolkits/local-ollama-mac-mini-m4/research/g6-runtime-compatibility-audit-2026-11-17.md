@@ -1151,7 +1151,7 @@ Static/source-level only. No checkpoint weights downloaded, no runtime installed
 
 **Conclusion: CONDITIONAL STATIC FIT; NOT A SAFETY PASS.**
 
-Two models *resident at the same time, with only one generating at a time* have a controlled target budget of approximately **9.09 GiB model-side**, plus a provisional 5 GiB non-model reserve and 1.5 GiB uncommitted safety headroom. This totals 15.59 GiB and leaves 0.41 GiB beyond the explicit headroom. The target therefore depends on hard caps for Kimi's expert pool, both MLX allocator caches, prompt cache, prefill/startup scratch, and on the non-model footprint actually staying at or below 5 GiB.
+Two models *resident at the same time, with only one generating at a time* have a controlled target budget of approximately **9.103 GiB model-side**, plus a provisional 5 GiB non-model reserve and 1.5 GiB uncommitted safety headroom. This totals 15.603 GiB and leaves 0.397 GiB beyond the explicit headroom. The target therefore depends on hard caps for Kimi's expert pool, both MLX allocator caches, prompt cache, prefill/startup scratch, and on the non-model footprint actually staying at or below 5 GiB.
 
 A higher-runtime/high-cache scenario can exceed the 16 GiB envelope. **Simultaneous inference (both models actively prefill/decode) is NOT admitted.** The proposed operating mode is dual-resident, global inference concurrency 1.
 
@@ -1231,7 +1231,7 @@ These are 4K estimates at batch 1, BF16 state/cache assumption; cache object lay
 | Granite | Mamba convolution state and metadata | small additional amount; not exact |
 | **Granite total** | **4K state allowance** | **0.06 GiB** |
 
-Combined model state allowance at 4K is **0.12 GiB**. At 8K, the Kimi state estimate is approximately 0.102–0.103 GiB; a combined Kimi + Granite estimate must be recalculated if that historical dual-resident scenario is ever reconsidered. This means context state is not the dominant resident-memory term for these hybrid architectures at 4K/8K; full Granite weights, Kimi expert pool, runtime, scratch and allocator caches dominate.
+Combined Kimi + Granite model state allowance at 4K is approximately **0.133 GiB** after updating Kimi's KDA state to FP32. At 8K, the Kimi state estimate is approximately 0.102–0.103 GiB; a combined Kimi + Granite estimate must be recalculated if that historical dual-resident scenario is ever reconsidered. This means context state is not the dominant resident-memory term for these hybrid architectures at 4K/8K; full Granite weights, Kimi expert pool, runtime, scratch and allocator caches dominate.
 
 Prompt-prefix cache is separate from KV/recurrent state. Initial combined prompt-cache cap: **0.25 GiB** (Kimi up to 0.25 GiB; Granite prefix reuse disabled initially unless separately bounded). Do not confuse semantic compaction with prefix-cache reuse.
 
@@ -1260,7 +1260,7 @@ Prefill target: 2048-token chunks or smaller. No MTP/draft, no speculative multi
 | macOS + DSH + desktop/user apps reserve | 5.00 | provisional project reserve; actual baseline must be ≤5 |
 | Kimi non-`switch_mlp` tensor payload | 1.063 | exact pinned index/header sum; runtime shell overhead and transform peak excluded |
 | Kimi expert pool | 2.00 | explicit cap |
-| Kimi 4K KDA/MLA state | 0.06 | shape-derived allowance |
+| Kimi 4K KDA/MLA state | 0.073 | source-derived conservative cap after MLX-LM KDA FP32 state inspection |
 | Granite full 4-bit weights | 3.64 | published file size converted GB→GiB |
 | Granite 4K Mamba/KV state | 0.06 | shape-derived allowance |
 | Kimi + Granite runtime bases | 0.80 | explicit engineering cap |
@@ -1357,7 +1357,7 @@ streamlx's generic loader uses `mlx_lm.load(..., lazy=True)`, wraps each `layer.
 | 3 GiB | 31 | 2.988556 GiB |
 | 4 GiB | 41 | 3.952606 GiB |
 
-**Kimi-only provisional static envelope:** exact trunk tensor bytes + the above actual pool + 0.06 GiB shape-derived 4K KDA/MLA state + provisional 0.50 GiB runtime base + 0.25 GiB allocator cache + 0.25 GiB prompt cache + 0.75 GiB scratch gives model-side subtotals of 4.801 / 5.862 / 6.826 GiB for 2/3/4 GiB pool targets. Adding the provisional 5 GiB host reserve and 1.5 GiB uncommitted safety reserve gives 11.301 / 12.362 / 13.326 GiB planned totals. This is static arithmetic only; the host reserve is not yet validated by the one-point host snapshot.
+**Kimi-only provisional static envelope:** exact trunk tensor bytes + the above actual pool + 0.073 GiB conservative source-derived 4K KDA/MLA state + provisional 0.50 GiB runtime base + 0.25 GiB allocator cache + 0.25 GiB prompt cache + 0.75 GiB scratch gives model-side subtotals of 4.814 / 5.875 / 6.839 GiB for 2/3/4 GiB pool targets. Adding the provisional 5 GiB host reserve and 1.5 GiB uncommitted safety reserve gives 11.314 / 12.375 / 13.339 GiB planned totals. This is static arithmetic only; the host reserve is not yet validated by the one-point host snapshot.
 
 The first bounded pilot, if separately authorized, should begin with a 2 GiB pool target, 4K context, concurrency 1, explicit `k=8`, no MTP/draft, no other model resident, and `STREAMLX_KEEPALIVE=0`. Do not increase the pool to 3/4 GiB until correctness, actual MLX/Metal peak, swap trend and system pressure pass.
 
