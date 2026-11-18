@@ -102,12 +102,12 @@ All three are above the 8-slot minimum (0.771240 GiB). The requested budget is a
 
 This table is a planning envelope, not a measured runtime result. It deliberately models **one large local model only**. Qwen3.5-4B remains installed as a sequential fallback/control but is not co-resident during a Kimi run. Granite is not included.
 
-Fixed provisional items:
+Fixed provisional items (Kimi 4K state updated after source inspection of MLX-LM v0.32.1):
 
 | Item | GiB | Evidence class |
 |---|---:|---|
 | Non-`switch_mlp` trunk tensor payload | 1.063068 | Exact checkpoint header bytes; expected materialized trunk |
-| Kimi 4K KDA/MLA state | 0.06 | Earlier shape-derived allowance; runtime dtype/layout not measured |
+| Kimi 4K KDA/MLA state | 0.073 | Source-derived conservative cap: 40 MiB FP32 KDA state + 31.5 MiB 16-bit MLA KV + up to 2.813 MiB KDA conv state; runtime activation dtype/allocator not measured |
 | Kimi runtime base | 0.50 | Engineering cap, not measured |
 | MLX freed-buffer allocator cache | 0.25 | Engineering cap, not measured |
 | RAM prompt-prefix cache | 0.25 | Engineering cap, not measured |
@@ -131,8 +131,8 @@ Interpretation:
 
 ## 6. Remaining gates
 
-1. Categorize the 1.063068 GiB trunk tensors, especially Kimi's quantized MLA `kv_b_proj` sanitization path, to estimate temporary conversion peak.
-2. Confirm exact Kimi KDA/MLA cache dtype and 4K/8K state allocation in MLX-LM runtime.
+1. Run the new header-only [Kimi shell breakdown script](../scripts/mac/g6.2-kimi-shell-breakdown.py) to categorize the 1.063068 GiB trunk tensors and measure the indexed `kv_b_proj` inputs to the sanitizer; then estimate conversion scratch.
+2. Confirm actual activation dtype and measured 4K/8K KDA/MLA cache allocation in an isolated runtime.
 3. Collect a second host snapshot 10–15 minutes after the first under normal DSH/desktop workload; compare swap-used, swapouts, compressor occupancy and pressure.
 4. Verify the installed local Python/MLX environment is separate from production and can meet the pinned streamlx/MLX-LM dependency set without touching Ollama or DSH.
 5. Only after the above, propose an isolated, separately authorized correctness/memory pilot.
