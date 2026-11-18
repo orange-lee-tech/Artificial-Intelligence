@@ -117,9 +117,9 @@ Fixed provisional items (Kimi 4K state updated after source inspection of MLX-LM
 
 | Expert-pool target | Model-side subtotal | Planned total incl. 5 GiB host + 1.5 GiB safety | Additional unallocated |
 |---:|---:|---:|---:|
-| 2 GiB target (1.928101 actual) | 4.801169 GiB | 11.301169 GiB | 4.698831 GiB |
-| 3 GiB target (2.988556 actual) | 5.861624 GiB | 12.361624 GiB | 3.638376 GiB |
-| 4 GiB target (3.952606 actual) | 6.825674 GiB | 13.325674 GiB | 2.674326 GiB |
+| 2 GiB target (1.928101 actual) | 4.814169 GiB | 11.314169 GiB | 4.685831 GiB |
+| 3 GiB target (2.988556 actual) | 5.874624 GiB | 12.374624 GiB | 3.625376 GiB |
+| 4 GiB target (3.952606 actual) | 6.838674 GiB | 13.338674 GiB | 2.661326 GiB |
 
 Interpretation:
 
@@ -131,9 +131,9 @@ Interpretation:
 
 ## 6. Remaining gates
 
-1. Run the new header-only [Kimi shell breakdown script](../scripts/mac/g6.2-kimi-shell-breakdown.py) to categorize the 1.063068 GiB trunk tensors and measure the indexed `kv_b_proj` inputs to the sanitizer; then estimate conversion scratch.
-2. Confirm actual activation dtype and measured 4K/8K KDA/MLA cache allocation in an isolated runtime.
-3. Collect a second host snapshot 10–15 minutes after the first under normal DSH/desktop workload; compare swap-used, swapouts, compressor occupancy and pressure.
+1. The [Kimi shell breakdown script](../scripts/mac/g6.2-kimi-shell-breakdown.py) has now run successfully: all nine non-routed categories sum exactly to 1,141,460,992 bytes; the seven MLA `kv_b_proj` layers contain 16,515,072 bytes (15.75 MiB) of original quantized tensors.
+2. Confirm actual activation dtype and measured sanitizer transient, 4K/8K KDA/MLA cache allocation and MLX/Metal peak in an isolated runtime.
+3. The second host snapshot is recorded. It shows no new swapouts in the 15:39–18:30 interval, but compressor occupancy rose by 190.86 MiB; an optional third sample can establish whether that rise plateaus under unchanged workload.
 4. Verify the installed local Python/MLX environment is separate from production and can meet the pinned streamlx/MLX-LM dependency set without touching Ollama or DSH.
 5. Only after the above, propose an isolated, separately authorized correctness/memory pilot.
 
@@ -155,3 +155,55 @@ Interpretation:
 - streamlx pinned pool: https://github.com/srcterm/streamlx/blob/af9bbe88439212464e5f4cccfa91df75172056b1/streamlx/pool.py
 - streamlx pinned Safetensors index: https://github.com/srcterm/streamlx/blob/af9bbe88439212464e5f4cccfa91df75172056b1/streamlx/stindex.py
 - PACS header audit script: https://github.com/orange-lee-tech/Artificial-Intelligence/blob/pacs/local-model-toolkit-m4-16gb/toolkits/local-ollama-mac-mini-m4/scripts/mac/g6.2-kimi-header-audit.py
+
+
+## 9. Exact non-routed module breakdown — 2026-11-18
+
+**PASS:** the user ran `g6.2-kimi-shell-breakdown.py` against the same pinned checkpoint. It repeated the index/header audit and reported nine non-routed categories. Their exact sum is `1,141,460,992 bytes`, exactly matching the non-`switch_mlp` total.
+
+| Category | Tensors | Exact bytes | MiB | GiB |
+|---|---:|---:|---:|---:|
+| `attention_other` | 730 | 544,366,080 | 519.148 | 0.506980 |
+| `embedding` | 3 | 212,336,640 | 202.500 | 0.197754 |
+| `output_head` | 3 | 212,336,640 | 202.500 | 0.197754 |
+| `shared_experts` | 234 | 103,514,112 | 98.719 | 0.096405 |
+| `mla_kv_b_proj_sanitize` | 21 | 16,515,072 | 15.750 | 0.015381 |
+| `moe_router` | 104 | 16,307,200 | 15.552 | 0.015187 |
+| `other_non_routed` | 9 | 35,831,808 | 34.172 | 0.033371 |
+| `layer_norms` | 54 | 248,832 | 0.237 | 0.000232 |
+| `final_norm` | 1 | 4,608 | 0.004 | 0.000004 |
+| **Total** | **1,159** | **1,141,460,992** | **1,088.535** | **1.063068** |
+
+### MLA `kv_b_proj` sanitizer input
+
+The audit found 21 tensors across the seven MLA layers (3, 7, 11, 15, 19, 23, 26):
+
+- Per layer: `weight [8192,64] U32 = 2,097,152 bytes`; `scales [8192,8] BF16 = 131,072 bytes`; `biases [8192,8] BF16 = 131,072 bytes`.
+- Per layer total: 2,359,296 bytes (2.25 MiB).
+- Seven-layer total: **16,515,072 bytes (15.75 MiB)**.
+
+Pinned MLX-LM v0.32.1 `KimiLinear.sanitize()` confirms that this is not a pass-through: it removes the packed weight/scales/biases, calls `mx.dequantize()`, reshapes the result, splits and makes contiguous `wk`/`wv` arrays, then calls `mx.quantize()` again and emits `embed_q` and `unembed_out` weights plus new scales/biases. Source: https://github.com/ml-explore/mlx-lm/blob/v0.32.1/mlx_lm/models/kimi_linear.py
+
+The 15.75 MiB figure is the exact **input checkpoint payload**, not the conversion peak. Dequantized intermediates, contiguous copies, requantized outputs, lazy graph lifetime and allocator behavior are not measured by a header-only audit. Do not use 15.75 MiB as the startup scratch allowance.
+
+## 10. Host operational follow-up — 2026-11-18 18:30 CST
+
+The second user-provided snapshot is compared with the first capture at 15:39 CST:
+
+| Metric | 15:39 | 18:30 | Change |
+|---|---:|---:|---:|
+| System-wide free percentage | 57% | 56% | -1 pp |
+| Current swap used | 470.50 MB | 446.50 MB | -24.00 MB |
+| Free pages | 9,106 | 10,352 | +1,246 pages (+19.47 MiB) |
+| Wired pages | 153,700 | 149,110 | -4,590 pages (-71.72 MiB) |
+| Pages occupied by compressor | 276,479 | 288,694 | +12,215 pages (+190.86 MiB) |
+| Cumulative swapins | 44,582 | 46,423 | +1,841 pages (+28.77 MiB) |
+| Cumulative swapouts | 102,568 | 102,568 | **No increase** |
+| Cumulative pageouts | 67,561 | 70,520 | +2,959 pages (+46.23 MiB) |
+
+At 18:30, compressor occupancy was 4.405121 GiB, wired pages 2.275238 GiB and raw free pages 161.75 MiB. The 56% system-wide free percentage is not directly model-allocatable memory.
+
+**Interpretation:** no new swapouts were observed and current swap use fell during this interval. Compressor occupancy nevertheless rose by about 191 MiB and free percentage fell one point. This does not show active swap-out growth, but it also does not establish a compressor plateau or validate the 5 GiB non-model reserve. Pageouts are a different cumulative counter from swapouts.
+
+Full second-snapshot evidence: [Host Operational Follow-up](host-operational-followup-2026-11-18-1830.md).
+
