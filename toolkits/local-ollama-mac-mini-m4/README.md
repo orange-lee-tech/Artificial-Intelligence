@@ -247,7 +247,7 @@ Full pinned revisions, source links, arithmetic and exact artifact findings: [G6
 ### G6.2 — PACS model-stack decision framework (2026-11-18)
 
 - **Small model:** retain installed Qwen3.5-4B as measured baseline/fallback; do not replace it solely because Qwen3.5-9B exists. The 9B Dense model is only an optional small-model upgrade after task-suite and memory comparison.
-- **Primary text MoE pilot:** Kimi Linear 48B-A3B (48B total / 3B active), because streamlx explicitly lists `kimi_linear`, hybrid KDA/MLA reduces long-context cache growth, and its estimated expert-pool floor is ~0.77GiB. It is text-only; pair with OCR/accessibility or a sequential/remote vision helper.
+- **Primary text MoE pilot:** Kimi Linear 48B-A3B (48B total / 3B active), because MLX-LM v0.32.1 exposes KimiSparseMoE with the stacked `switch_mlp` layout consumed by streamlx's generic loader, hybrid KDA/MLA reduces long-context cache growth, and the exact header audit confirms a 0.771240 GiB top-8 slot floor. This is source-level structural compatibility, not an upstream Kimi end-to-end validation. It is text-only; pair with OCR/accessibility or a sequential/remote vision helper.
 - **Multimodal MoE comparison:** Qwen3.6-35B-A3B (35B / 3B active, vision encoder, 40 layers, 256 experts, top-8 + shared). streamlx validates the Qwen3.5-MoE family; current serve-mlx/mlx-moe-stream docs describe a 16GB vision starting profile, but this is not a PACS M4 mini hardware pass.
 - **Stretch target:** Qwen3.5-122B-A10B (122B / 10B active, vision-capable); keep standard MLX+streamlx separate from TurboQuant custom format. Static fit is conditional; full vision-streaming and sustained DSH/GUI use remain unverified.
 - **Mistral Small 4:** retain as P1 architecture/quality and `mistral4` adapter audit, not eliminated. Official spec says 119B total / 6B active in MoE (8B including embeddings/output), 128 experts, top-4, image input. No explicit streamlx adapter.
@@ -264,12 +264,12 @@ Full decision matrix, context policy, local permissions, node roles and source r
 ### G6.3 — Kimi + Granite 双模型常驻静态内存审计（2026-11-18）
 
 - **结论：条件性静态可行，不是安全 PASS。** Kimi Linear 48B-A3B + Granite 4.0 H-Tiny 4-bit 双模型同时驻留、但全局推理并发=1，目标账本约 **9.09 GiB model-side**；另预留5 GiB macOS/DSH/应用空间和1.5 GiB未承诺安全余量，计划总量约 **15.59 GiB**，仅余0.41 GiB额外空间。
-- Kimi：26 MoE层、top-8；按affine 4-bit/group64和FP16 scales/biases估算，每专家3,981,312B；最低专家槽位约0.771GiB；首轮池上限2.0GiB；shell约1.03GiB（由27.6GB总checkpoint减估算专家权重）。
+- Kimi：26 MoE层、top-8；2026-11-18 对 pinned Safetensors index + 六个 shard headers 完成精确核算：每专家3,981,312B，top-8最低槽位828,112,896B（0.771240GiB）；非 `switch_mlp` 张量共1,141,460,992B（1.063068GiB）。后者是 checkpoint trunk tensor payload，不等于包含 MLX/Metal/临时转换的实测 shell 峰值。首轮专家池暂定2GiB目标。
 - Granite：4-bit模型卡显示3.91GB（3.64GiB）。按40层、64专家、top-6、hidden1536、expert intermediate512，shape-derived全专家权重约3.164GiB，shell余量约0.477GiB。标准MLX-LM路径按全部3.64GiB常驻；active专家约0.297GiB已包含在全模型权重中，不得重复相加。
 - 4K状态估算：Kimi约0.06GiB（MLA KV + KDA recurrent state）；Granite约0.06GiB（Mamba2 state + attention KV）。状态不是主要内存成本。
 - 初始硬帽：Kimi pool 2GiB；allocator cache总计0.5GiB；prompt cache总计0.25GiB；runtime bases总计0.8GiB；活动模型scratch/startup peak 0.75GiB；MTP/draft关闭。
 - 两模型同时推理/同时Prefill为 **NO-GO**。双模型同时驻留只在实际非模型基线≤5GiB、model-side峰值≤9.5GiB、并保留≥1.5GiB headroom时才准入；任一超限则拒绝双驻留。
-- Granite MLX checkpoint 的完整 immutable revision、Safetensors index/header 和 H-Tiny/H-Micro 模型树元数据不一致仍待核对；不下载、不安装、不执行。Kimi index/header精确解析也未完成。**G6.3仍为PARTIAL / STATIC ONLY。**
+- Granite MLX checkpoint 的完整 immutable revision、Safetensors index/header 和 H-Tiny/H-Micro 模型树元数据不一致仍待核对；不下载、不安装、不执行。Kimi index/header 精确解析已于2026-11-18完成，但该双驻留研究不构成当前部署目标。**G6.3仍为PARTIAL / STATIC ONLY。**
 
 详细张量分类、公式、逐项预算、运行限制和待关闭问题：[G6 Runtime Compatibility Audit / 7K Dual-resident audit](research/g6-runtime-compatibility-audit-2026-11-17.md#7k-kimi-linear--granite-h-tiny-dual-resident-static-memory-audit-2026-11-18)。
 
@@ -293,3 +293,23 @@ Evidence: [Host Operational Baseline](reports/host-operational-baseline-2026-11-
 Next read-only source task: run [G6.2 Kimi header audit](scripts/mac/g6.2-kimi-header-audit.py). The script pins `mlx-community/Kimi-Linear-48B-A3B-Instruct-4bit@919175d75427f1c10cfc17e7254b53295edddf72`, reads only the small config/index and Safetensors headers via HTTP Range, validates exact index-to-header key coverage, and calculates exact routed-expert bytes, non-expert tensor bytes, and per-layer top-8 slot floor. It fails closed if the server does not confirm partial-content responses. It does not download tensor payloads, install packages, or change local configuration.
 
 **No model load, runtime installation, or checkpoint download is authorized by this baseline.**
+
+
+## 2026-11-18 — Kimi G6.2 exact header audit
+
+**PASS:** the user ran the pinned read-only HTTP-Range audit for `mlx-community/Kimi-Linear-48B-A3B-Instruct-4bit@919175d75427f1c10cfc17e7254b53295edddf72`.
+
+- 1,393 tensor keys matched exactly across the index and all six shard headers.
+- Total tensor bytes: 27,641,073,664 (25.742756 GiB).
+- Routed `switch_mlp` expert bytes: 26,499,612,672 (24.679688 GiB).
+- Non-`switch_mlp` tensor bytes: 1,141,460,992 (1.063068 GiB).
+- Exact top-8 per-layer slot floor across 26 MoE layers: 828,112,896 bytes (0.771240 GiB).
+- Per-expert bundle: 3,981,312 bytes, identical across all 26 MoE layers.
+
+**Runtime compatibility correction:** current inspected streamlx commit `af9bbe88439212464e5f4cccfa91df75172056b1` does not explicitly list Kimi as an end-to-end tested checkpoint in its README/model table. MLX-LM v0.32.1 does implement Kimi Linear with `KimiSparseMoE.switch_mlp`, which matches streamlx's generic wrapper. Classify this as SOURCE-VERIFIED STRUCTURAL MATCH, NOT END-TO-END VALIDATED. Explicitly pass `k=8`: streamlx's top-k helper reads `num_experts_per_tok`, while this Kimi config uses `num_experts_per_token` and therefore happens to fall back to 8.
+
+The Kimi-only provisional 2/3/4 GiB pool envelope and exact byte audit are recorded in [Kimi Linear G6.2 Exact Header Audit](reports/kimi-linear-g6.2-exact-header-audit-2026-11-18.md).
+
+**Current execution policy remains one large local model at a time.** The installed Qwen3.5-4B remains a sequential fallback/control, not co-resident with Kimi. The historical Kimi + Granite dual-resident ledger is not an approved deployment target.
+
+No model download, runtime installation, model execution or production configuration change was performed.
