@@ -1151,7 +1151,7 @@ Static/source-level only. No checkpoint weights downloaded, no runtime installed
 
 **Conclusion: CONDITIONAL STATIC FIT; NOT A SAFETY PASS.**
 
-Two models *resident at the same time, with only one generating at a time* have a controlled target budget of approximately **9.19 GiB model-side**, plus a provisional 5 GiB non-model reserve and 1.5 GiB uncommitted safety headroom. This totals 15.69 GiB and leaves only 0.31 GiB beyond the explicit headroom. The target therefore depends on hard caps for Kimi's expert pool, both MLX allocator caches, prompt cache, prefill/startup scratch, and on the non-model footprint actually staying at or below 5 GiB.
+Two models *resident at the same time, with only one generating at a time* have a controlled target budget of approximately **9.09 GiB model-side**, plus a provisional 5 GiB non-model reserve and 1.5 GiB uncommitted safety headroom. This totals 15.59 GiB and leaves 0.41 GiB beyond the explicit headroom. The target therefore depends on hard caps for Kimi's expert pool, both MLX allocator caches, prompt cache, prefill/startup scratch, and on the non-model footprint actually staying at or below 5 GiB.
 
 A higher-runtime/high-cache scenario can exceed the 16 GiB envelope. **Simultaneous inference (both models actively prefill/decode) is NOT admitted.** The proposed operating mode is dual-resident, global inference concurrency 1.
 
@@ -1267,9 +1267,9 @@ Prefill target: 2048-token chunks or smaller. No MTP/draft, no speculative multi
 | MLX allocator caches | 0.50 | explicit combined cap |
 | Prompt-prefix cache | 0.25 | explicit combined cap |
 | Active scratch/startup peak | 0.75 | explicit peak cap; one model active |
-| **Model-side subtotal** | **9.19** | **must remain ≤9.50 GiB** |
+| **Model-side subtotal** | **9.09** | **must remain ≤9.50 GiB** |
 | Additional uncommitted safety headroom | 1.50 | hard reserve |
-| **Planned total** | **15.69 GiB** | **0.31 GiB unallocated** |
+| **Planned total** | **15.59 GiB** | **0.41 GiB unallocated** |
 
 Admission rule:
 
