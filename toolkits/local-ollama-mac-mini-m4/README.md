@@ -263,7 +263,7 @@ Full decision matrix, context policy, local permissions, node roles and source r
 
 ### G6.3 — Kimi + Granite 双模型常驻静态内存审计（2026-11-18）
 
-- **结论：条件性静态可行，不是安全 PASS。** Kimi Linear 48B-A3B + Granite 4.0 H-Tiny 4-bit 双模型同时驻留、但全局推理并发=1，目标账本约 **9.09 GiB model-side**；另预留5 GiB macOS/DSH/应用空间和1.5 GiB未承诺安全余量，计划总量约 **15.59 GiB**，仅余0.41 GiB额外空间。
+- **仅作历史静态研究，不是部署批准。** Kimi Linear 48B-A3B + Granite 4.0 H-Tiny 4-bit 双模型同时驻留、全局推理并发=1，修正后目标账本约 **9.103 GiB model-side**；另预留5 GiB macOS/DSH/应用空间和1.5 GiB未承诺安全余量，计划总量约 **15.603 GiB**，仅余0.397 GiB额外空间。当前执行政策仍是一次只驻留一个大型本地模型；Qwen3.5-4B 仅作顺序 fallback/control。
 - Kimi：26 MoE层、top-8；2026-11-18 对 pinned Safetensors index + 六个 shard headers 完成精确核算：每专家3,981,312B，top-8最低槽位828,112,896B（0.771240GiB）；非 `switch_mlp` 张量共1,141,460,992B（1.063068GiB）。后者是 checkpoint trunk tensor payload，不等于包含 MLX/Metal/临时转换的实测 shell 峰值。首轮专家池暂定2GiB目标。
 - Granite：4-bit模型卡显示3.91GB（3.64GiB）。按40层、64专家、top-6、hidden1536、expert intermediate512，shape-derived全专家权重约3.164GiB，shell余量约0.477GiB。标准MLX-LM路径按全部3.64GiB常驻；active专家约0.297GiB已包含在全模型权重中，不得重复相加。
 - 4K状态估算：Kimi约0.073GiB（MLA KV + FP32 KDA recurrent state + 短卷积状态，源代码推导）；Granite约0.06GiB（Mamba2 state + attention KV，形状估算）。状态不是主要内存成本。
@@ -275,7 +275,7 @@ Full decision matrix, context policy, local permissions, node roles and source r
 
 
 
-## 2026-11-18 — Host operational baseline and next read-only audit
+## 2026-11-18 — Host operational baseline and follow-up
 
 The user captured the host with DSH and desktop applications running and no Ollama model resident:
 
@@ -286,11 +286,15 @@ The user captured the host with DSH and desktop applications running and no Olla
 - TS900: 946 GiB available.
 - Ollama `/api/ps`: `{"models":[]}`.
 
-This is an operational desktop baseline, not a stripped-down idle baseline. Do not translate the 57% figure directly into model-allocatable memory. The second time-separated sample must establish swap and compressor trends before a hardware pilot.
+This is an operational desktop baseline, not a stripped-down idle baseline. Do not translate the 57% figure directly into model-allocatable memory.
+
+The second sample at 18:30 CST reported 56% system-wide free percentage, swap used 446.50 MB, 10,352 free pages, 149,110 wired pages and 288,694 pages occupied by compressor (4.405 GiB). Compared with 15:39: swap used fell 24 MB, cumulative swapouts stayed at 102,568, swapins rose 1,841 pages (+28.77 MiB), and compressor occupancy rose 190.86 MiB. No new swapouts were observed during this interval, but compressor plateau is not established and the 5 GiB non-model reserve remains provisional.
+
+Evidence: [Host Operational Follow-up](reports/host-operational-followup-2026-11-18-1830.md).
 
 Evidence: [Host Operational Baseline](reports/host-operational-baseline-2026-11-18.md).
 
-Next read-only source task: run [G6.2 Kimi header audit](scripts/mac/g6.2-kimi-header-audit.py). The script pins `mlx-community/Kimi-Linear-48B-A3B-Instruct-4bit@919175d75427f1c10cfc17e7254b53295edddf72`, reads only the small config/index and Safetensors headers via HTTP Range, validates exact index-to-header key coverage, and calculates exact routed-expert bytes, non-expert tensor bytes, and per-layer top-8 slot floor. It fails closed if the server does not confirm partial-content responses. It does not download tensor payloads, install packages, or change local configuration.
+The Kimi header audit and shell breakdown have both completed using HTTP Range only. The second script confirms all nine non-routed categories sum to exactly 1,141,460,992 bytes and identifies 16,515,072 bytes (15.75 MiB) of original `kv_b_proj` tensors across seven MLA layers. It does not measure the dequantize/reshape/requantize startup peak.
 
 **No model load, runtime installation, or checkpoint download is authorized by this baseline.**
 
@@ -315,4 +319,15 @@ The Kimi-only provisional 2/3/4 GiB pool envelope and exact byte audit are recor
 No model download, runtime installation, model execution or production configuration change was performed.
 
 
-**下一项只读审计：** [Kimi shell breakdown audit](scripts/mac/g6.2-kimi-shell-breakdown.py)，对1.063068GiB非routed张量按模块分类，并精确列出MLA `kv_b_proj` sanitizer输入；仍只读取HTTP Range headers，不下载权重。
+**Shell breakdown 已完成：** [Kimi shell breakdown audit](scripts/mac/g6.2-kimi-shell-breakdown.py)。九类非routed张量精确合计1,141,460,992 bytes；MLA `kv_b_proj` 输入为21个张量、合计16,515,072 bytes（15.75 MiB）。MLX-LM v0.32.1 会对其执行 dequantize → reshape/split/contiguous → requantize；实际转换峰值仍未测量。详见 [Kimi G6.2 精确审计报告](reports/kimi-linear-g6.2-exact-header-audit-2026-11-18.md)。
+
+
+### G6.2 — Kimi shell breakdown 与 18:30 主机内存复测（2026-11-18）
+
+- 非 routed 张量九类精确合计 **1,141,460,992 bytes / 1.063068 GiB**，与 Header 总账完全一致。
+- 最大分类为 attention_other：544,366,080 bytes / 0.506980 GiB；Embedding 与 Output Head 各 0.197754 GiB；Shared Experts 0.096405 GiB。
+- MLA `kv_b_proj`：7层、21个张量、原始输入共 **16,515,072 bytes / 15.75 MiB**。MLX-LM sanitizer 会反量化、reshape、拆分、contiguous 并重新量化；15.75 MiB 不是临时内存峰值。
+- 15:39→18:30 主机快照：Swap 470.50→446.50 MB；累计 swapouts 未增加；swapins +1,841 pages；Compressor +190.86 MiB；system-wide free percentage 57%→56%。**未观察到本区间新增 swapouts，但压缩器是否达到平台期仍未确定。**
+- 5 GiB 非模型预留仍为 provisional；本轮没有安装 Runtime、下载模型或启动 Kimi。
+
+报告：[Kimi Linear G6.2 Exact Header Audit](reports/kimi-linear-g6.2-exact-header-audit-2026-11-18.md) · [Host Operational Follow-up](reports/host-operational-followup-2026-11-18-1830.md)。
