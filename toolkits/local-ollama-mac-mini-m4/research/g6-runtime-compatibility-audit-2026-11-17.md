@@ -1141,3 +1141,180 @@ This section separates the small-model decision from the primary MoE decision. T
 - Qwen3.5-9B remains optional small-model replacement only; not the primary MoE model.
 - No model download, runtime installation, hardware execution or production configuration change is authorized by this strategy section.
 
+
+
+## 7K. Kimi Linear + Granite H-Tiny dual-resident static memory audit (2026-11-18)
+
+### 7K.1 Scope and conclusion
+
+Static/source-level only. No checkpoint weights downloaded, no runtime installed, no model started, no production configuration changed.
+
+**Conclusion: CONDITIONAL STATIC FIT; NOT A SAFETY PASS.**
+
+Two models *resident at the same time, with only one generating at a time* have a controlled target budget of approximately **9.19 GiB model-side**, plus a provisional 5 GiB non-model reserve and 1.5 GiB uncommitted safety headroom. This totals 15.69 GiB and leaves only 0.31 GiB beyond the explicit headroom. The target therefore depends on hard caps for Kimi's expert pool, both MLX allocator caches, prompt cache, prefill/startup scratch, and on the non-model footprint actually staying at or below 5 GiB.
+
+A higher-runtime/high-cache scenario can exceed the 16 GiB envelope. **Simultaneous inference (both models actively prefill/decode) is NOT admitted.** The proposed operating mode is dual-resident, global inference concurrency 1.
+
+### 7K.2 Exact artifacts and source status
+
+**Kimi**
+
+- Repo: `mlx-community/Kimi-Linear-48B-A3B-Instruct-4bit`
+- Immutable revision: `919175d75427f1c10cfc17e7254b53295edddf72`
+- Config: `kimi_linear`, 27 layers; first dense + 26 MoE; 256 routed experts; top-8; one shared expert; hidden 2304; expert intermediate 1024; 20 KDA + 7 MLA; affine 4-bit/group64, router gates overridden to 8-bit.
+- HF tree displays 27.6 GB and six safetensors shards. The model page and config are pinned to the inspected revision.
+- streamlx explicitly validates `kimi_linear` and loads the trunk lazily while keeping routed expert tensors on SSD and using per-layer pools.
+
+**Granite**
+
+- Candidate repo: `mlx-community/granite-4.0-h-tiny-4bit`
+- Model card says it was converted from `ibm-granite/granite-4.0-h-tiny` with `mlx-lm 0.28.2`; the page reports 3.91 GB, 4-bit MLX.
+- Official IBM H-Tiny config/index: 6,939,037,248 parameters; BF16 source index total_size 13,878,074,496 bytes; 40 layers (36 Mamba-2 + 4 attention), hidden 1536, 64 experts, top-6, expert intermediate 512, 48 Mamba heads ×64 head dim, state size128, 4 KV heads.
+- **Artifact identity is not fully closed:** the MLX model card conversion text names H-Tiny, but the Hugging Face model-tree relation currently points to H-Micro; the index/header and full immutable revision of the MLX quantized artifact have not been parsed in this audit. Treat 3.91 GB as a published size, not exact parsed tensor total. Do not download/use until the full revision, config and index/header are pinned and cross-checked.
+- MLX-LM documentation/model registry includes `granitemoehybrid`; this is architecture support evidence, not proof of this exact quantized artifact's correctness on the M4 mini.
+- **Do not assume streamlx streaming for Granite.** streamlx explicitly validates Kimi, Laguna and Qwen3.5-MoE and requires the standard stacked `switch_mlp` layout. The exact Granite MLX index layout has not been checked. Budget Granite conservatively as a fully resident 4-bit model.
+
+### 7K.3 Kimi weight-tensor ledger
+
+All calculations below are shape-derived, not yet exact per-key Safetensors-header accounting. Quantization overhead assumes affine 4-bit, group64, FP16 scales and FP16 biases. Router gates are 8-bit per config and are included in the shell residual, not in the routed expert formula.
+
+For each routed expert, the three SwiGLU matrices are gate/up/down, each with 2304 × 1024 elements:
+
+- Parameters per matrix: 2,359,296.
+- Packed 4-bit values: 1,179,648 bytes.
+- Number of groups: 36,864; FP16 scales + FP16 biases: 147,456 bytes.
+- Per matrix: 1,327,104 bytes.
+- Three matrices per expert: **3,981,312 bytes = 3.797 MiB**.
+
+| Kimi tensor group | Calculation | Estimate |
+|---|---|---:|
+| All routed experts on disk | 26 × 256 × 3,981,312 B | 26.50 GB / 24.68 GiB |
+| Minimum active slot floor | 26 × 8 × 3,981,312 B | 0.771 GiB |
+| Proposed resident expert pool | explicit cap | 2.00 GiB |
+| Non-expert trunk/shell | 27.6 GB published checkpoint size less estimated routed experts | ~1.03 GiB |
+| Full routed-expert bank not resident | kept on TS900 | not counted in RAM |
+
+The 2 GiB pool is about 2.6× the shape-derived minimum floor and averages about 20.7 expert slots per MoE layer (about 78.8 MiB/layer), versus the required 8 slots/layer. This is a capacity target, **not a predicted hit rate**. Actual expert locality/hit rate is unknown without a PACS routing trace.
+
+At a cold token where every selected expert misses, the shape-derived fetched bytes are about 0.771 GiB. At the TS900 non-zero sequential-read reference of 834.7 MiB/s, that is about 0.95 s of serial-read equivalent before overlap/parallelism/cache effects; it is not a token-latency prediction.
+
+### 7K.4 Granite H-Tiny weight-tensor ledger
+
+Published MLX 4-bit artifact size is 3.91 GB decimal = **3.64 GiB**. The original IBM BF16 index gives 6.939B total parameters and the config gives hidden 1536, expert intermediate512, 64 experts, top-6, 40 layers. The following split assumes each expert is represented by fused input (gate+up) and output projections, equivalent to three 1536 × 512 matrices. It also assumes affine 4-bit/group64 with FP16 scales and biases; the quantized MLX header is not yet available for exact verification.
+
+- Parameters/expert: 3 × 1536 × 512 = 2,359,296.
+- Packed 4-bit values: 1,179,648 bytes.
+- Group metadata: 36,864 groups × (FP16 scale + FP16 bias) = 147,456 bytes.
+- Estimated bundle/expert: **1,327,104 bytes = 1.266 MiB**.
+
+| Granite tensor group | Calculation | Estimate |
+|---|---|---:|
+| All routed experts | 40 × 64 × 1,327,104 B | 3.397 GB / 3.164 GiB |
+| Active routed expert set per token | 40 × 6 × 1,327,104 B | 0.297 GiB |
+| Non-expert shell residual | published 3.91 GB less estimated full expert bank | ~0.477 GiB |
+| Full 4-bit model resident | standard MLX-LM load assumption | 3.64 GiB |
+
+**Important double-counting rule:** in the proposed standard MLX-LM path, the 3.64 GiB full model weight allocation already contains all experts. The 0.297 GiB active expert set is a subset of those resident weights and must NOT be added again. Only if a verified Granite streaming adapter is later implemented would the full resident expert bank be replaced by a smaller expert pool.
+
+### 7K.5 Context state and cache
+
+These are 4K estimates at batch 1, BF16 state/cache assumption; cache object layout and actual dtype still require runtime-source confirmation.
+
+| Model | Component | Shape-derived estimate |
+|---|---|---:|
+| Kimi | 7 MLA layers, compressed KV rank512 + RoPE key64, 4K | 31.5 MiB |
+| Kimi | 20 KDA recurrent matrices, 32 heads ×128×128, BF16 | ~20 MiB |
+| Kimi | KDA short-convolution and metadata | small additional amount; not exact |
+| **Kimi total** | **4K state allowance** | **0.06 GiB** |
+| Granite | 36 Mamba-2 state tensors, 48×64×128 BF16/layer | ~27 MiB |
+| Granite | 4 attention layers, 4 KV heads ×128, K+V BF16, 4K | 32 MiB |
+| Granite | Mamba convolution state and metadata | small additional amount; not exact |
+| **Granite total** | **4K state allowance** | **0.06 GiB** |
+
+Combined model state allowance at 4K is **0.12 GiB**. At 8K the shape-derived combined allowance remains roughly 0.17 GiB. This means context state is not the dominant resident-memory term for these hybrid architectures at 4K/8K; full Granite weights, Kimi expert pool, runtime, scratch and allocator caches dominate.
+
+Prompt-prefix cache is separate from KV/recurrent state. Initial combined prompt-cache cap: **0.25 GiB** (Kimi up to 0.25 GiB; Granite prefix reuse disabled initially unless separately bounded). Do not confuse semantic compaction with prefix-cache reuse.
+
+### 7K.6 Runtime, allocator and scratch budget
+
+These are explicit engineering caps, not published measurements of the target M4 mini:
+
+| Runtime item | Initial budget |
+|---|---:|
+| Kimi process/runtime base, excluding model shell and pool | 0.50 GiB |
+| Granite process/runtime base, excluding weights | 0.30 GiB |
+| MLX freed-buffer allocator caches combined | 0.50 GiB (target 0.25 GiB per process) |
+| Active prefill/decode/startup temporary scratch | 0.75 GiB peak, one active model only |
+| Prompt-prefix cache combined | 0.25 GiB |
+| MTP/draft | 0 GiB; disabled |
+| Concurrent second-model scratch | 0 GiB; disallowed |
+
+streamlx README reports resident use approximately trunk + expert budget + 1–2 GB on its tested 32GB M4 Air systems, and exposes `--mlx-cache-gib` (default2.0) and `--prompt-cache-gib` controls. The 1–2 GB is not a Granite or PACS M4 mini measurement; this audit converts it into explicit provisional process/cache/scratch caps. Override defaults rather than inheriting the 2 GiB MLX freed-buffer cache or auto prompt-cache budget.
+
+Prefill target: 2048-token chunks or smaller. No MTP/draft, no speculative multi-stream, no concurrent browser/Office/GUI screenshot workload in the first dual-resident acceptance stage.
+
+### 7K.7 16 GiB admission ledger
+
+| Item | GiB | Status |
+|---|---:|---|
+| macOS + DSH + desktop/user apps reserve | 5.00 | provisional project reserve; actual baseline must be ≤5 |
+| Kimi non-expert shell | 1.03 | derived from rounded checkpoint size |
+| Kimi expert pool | 2.00 | explicit cap |
+| Kimi 4K KDA/MLA state | 0.06 | shape-derived allowance |
+| Granite full 4-bit weights | 3.64 | published file size converted GB→GiB |
+| Granite 4K Mamba/KV state | 0.06 | shape-derived allowance |
+| Kimi + Granite runtime bases | 0.80 | explicit engineering cap |
+| MLX allocator caches | 0.50 | explicit combined cap |
+| Prompt-prefix cache | 0.25 | explicit combined cap |
+| Active scratch/startup peak | 0.75 | explicit peak cap; one model active |
+| **Model-side subtotal** | **9.19** | **must remain ≤9.50 GiB** |
+| Additional uncommitted safety headroom | 1.50 | hard reserve |
+| **Planned total** | **15.69 GiB** | **0.31 GiB unallocated** |
+
+Admission rule:
+
+1. Actual non-model baseline (macOS + DSH + user apps) must be no more than 5 GiB. Every GiB above this reduces the 9.5 GiB model cap one-for-one.
+2. Model-side measured peak must remain ≤9.5 GiB.
+3. At least 1.5 GiB must remain uncommitted after the planned workload.
+4. Any cap breach, rising swap, sustained memory pressure or failed allocator-cache reclamation rejects dual-resident mode.
+5. If Granite load/startup creates a transient copy above the 0.75 GiB scratch allowance, the dual-resident admission fails; do not force it through swap.
+
+### 7K.8 Operating-mode decision
+
+| Mode | Decision |
+|---|---|
+| Both model processes resident; one idle | **Conditional target** under 9.5 GiB model cap |
+| Granite active, Kimi resident but idle | Conditional; global concurrency remains 1 |
+| Kimi active, Granite resident but idle | Conditional; global concurrency remains 1 |
+| Both models generating simultaneously | **NO-GO** |
+| Both models prefill simultaneously | **NO-GO** |
+| 8K context | later gate, only after 4K |
+| MTP/draft / multi-stream | disabled |
+| Kimi expert pool above 2 GiB | not admitted until re-budgeted |
+| Granite streaming expert pool | not counted; adapter/layout not validated |
+
+Use separate model processes/endpoints and a PACS global GPU semaphore. streamlx itself documents one-at-a-time requests by design; a second service does not imply safe concurrent Metal execution.
+
+### 7K.9 Main unresolved items before any download or installation
+
+1. Pin the full immutable Granite MLX repo revision; resolve its H-Tiny/H-Micro model-tree metadata discrepancy.
+2. Parse the exact Granite MLX Safetensors index and shard headers; confirm all tensor names, shapes, quantized weight/scales/biases dtypes and exact total_size.
+3. Parse Kimi pinned index/header to replace the rounded 27.6GB subtraction and FP16 scale/bias assumption with exact byte ranges.
+4. Inspect the pinned Granite MLX-LM implementation for lazy materialization, Mamba state dtype, attention cache dtype and prefill temporary allocations.
+5. Inspect streamlx Kimi cache and pool allocation paths to confirm 2 GiB means total per-layer slot budget and quantify per-layer alignment/metadata.
+6. Establish whether separate MLX processes can enforce the stated allocator-cache caps and whether freed buffers are actually reclaimed from Metal.
+7. Recalculate if the measured idle DSH/macOS/app baseline exceeds 5 GiB.
+
+No download, install, model execution, process restart, Ollama/DSH configuration change, or deletion was performed. G6.3 remains **PARTIAL / STATIC ONLY**. Dual-resident mode is a conditional research target, not an approved deployment.
+
+### 7K.10 Source references
+
+- Kimi pinned MLX checkpoint tree: https://huggingface.co/mlx-community/Kimi-Linear-48B-A3B-Instruct-4bit/tree/919175d75427f1c10cfc17e7254b53295edddf72
+- Kimi pinned config: https://huggingface.co/mlx-community/Kimi-Linear-48B-A3B-Instruct-4bit/blob/919175d75427f1c10cfc17e7254b53295edddf72/config.json
+- streamlx implementation/README: https://github.com/srcterm/streamlx
+- IBM Granite H-Tiny config: https://huggingface.co/ibm-granite/granite-4.0-h-tiny/blob/a6188e17509164464aa9601a346febf2be9ac5a5/config.json
+- IBM Granite H-Tiny original index: https://huggingface.co/ibm-granite/granite-4.0-h-tiny/blob/a6188e17509164464aa9601a346febf2be9ac5a5/model.safetensors.index.json
+- MLX Granite H-Tiny 4-bit candidate: https://huggingface.co/mlx-community/granite-4.0-h-tiny-4bit
+- MLX-LM Granite hybrid model registry: https://github.com/ml-explore/mlx-lm
+- Independent M4 Max benchmark discussion (architecture/runtime corroboration only; not M4 mini evidence): https://github.com/ml-explore/mlx-lm/discussions/1847
+
