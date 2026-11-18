@@ -261,7 +261,7 @@ Full decision matrix, context policy, local permissions, node roles and source r
 
 
 
-### G6.3 — Kimi + Granite 双模型常驻静态内存审计（2026-11-18）
+### 历史研究 — Kimi + Granite 双模型常驻静态内存审计（2026-11-18；非当前部署目标）
 
 - **仅作历史静态研究，不是部署批准。** Kimi Linear 48B-A3B + Granite 4.0 H-Tiny 4-bit 双模型同时驻留、全局推理并发=1，修正后目标账本约 **9.103 GiB model-side**；另预留5 GiB macOS/DSH/应用空间和1.5 GiB未承诺安全余量，计划总量约 **15.603 GiB**，仅余0.397 GiB额外空间。当前执行政策仍是一次只驻留一个大型本地模型；Qwen3.5-4B 仅作顺序 fallback/control。
 - Kimi：26 MoE层、top-8；2026-11-18 对 pinned Safetensors index + 六个 shard headers 完成精确核算：每专家3,981,312B，top-8最低槽位828,112,896B（0.771240GiB）；非 `switch_mlp` 张量共1,141,460,992B（1.063068GiB）。后者是 checkpoint trunk tensor payload，不等于包含 MLX/Metal/临时转换的实测 shell 峰值。首轮专家池暂定2GiB目标。
