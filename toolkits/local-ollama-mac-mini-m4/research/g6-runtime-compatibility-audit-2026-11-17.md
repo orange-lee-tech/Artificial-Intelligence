@@ -1364,9 +1364,37 @@ streamlx's generic loader uses `mlx_lm.load(..., lazy=True)`, wraps each `layer.
 
 The first bounded pilot, if separately authorized, should begin with a 2 GiB pool target, 4K context, concurrency 1, explicit `k=8`, no MTP/draft, no other model resident, and `STREAMLX_KEEPALIVE=0`. Do not increase the pool to 3/4 GiB until correctness, actual MLX/Metal peak, swap trend and system pressure pass.
 
-The 2026-11-18 user host snapshot had 57% system-wide free percentage, 470.50 MB current swap, about 4.22 GiB physically occupied by compressor and no thermal/performance warning. These values are not a direct model-allocatable-memory measurement. A second time-separated snapshot is still required to assess swap/compressor trends.
+The 15:39→18:30 host follow-up showed system-wide free percentage 57%→56%, current swap 470.50→446.50 MB, swapouts unchanged at 102,568, swapins +1,841 pages (+28.77 MiB), and compressor occupancy +12,215 pages (+190.86 MiB). No new swapouts were observed in this interval; compressor plateau is not established. These values are not a direct model-allocatable-memory measurement, and the provisional 5 GiB non-model reserve remains unproven. See [Host Operational Follow-up](../reports/host-operational-followup-2026-11-18-1830.md).
 
 Full calculations and source links: [Kimi Linear G6.2 Exact Header Audit](../reports/kimi-linear-g6.2-exact-header-audit-2026-11-18.md).
 
 
 **Next metadata-only step:** [Kimi non-routed shell breakdown script](../scripts/mac/g6.2-kimi-shell-breakdown.py) groups the exact 1.063068 GiB non-routed tensor bytes and reports the original MLA `kv_b_proj` tensors that MLX-LM's Kimi sanitizer dequantizes/re-quantizes. It reads headers only and fails closed if HTTP Range is unavailable.
+
+
+### 7M. Kimi shell breakdown and host memory follow-up (2026-11-18)
+
+**Header-only shell breakdown: PASS.** The user ran `g6.2-kimi-shell-breakdown.py` against the same immutable checkpoint. Nine non-routed categories sum exactly to 1,141,460,992 bytes (1.063068 GiB):
+
+| Category | Tensors | Exact bytes | GiB |
+|---|---:|---:|---:|
+| attention_other | 730 | 544,366,080 | 0.506980 |
+| embedding | 3 | 212,336,640 | 0.197754 |
+| output_head | 3 | 212,336,640 | 0.197754 |
+| shared_experts | 234 | 103,514,112 | 0.096405 |
+| MLA kv_b_proj sanitizer input | 21 | 16,515,072 | 0.015381 |
+| MoE router | 104 | 16,307,200 | 0.015187 |
+| other non-routed | 9 | 35,831,808 | 0.033371 |
+| layer norms | 54 | 248,832 | 0.000232 |
+| final norm | 1 | 4,608 | 0.000004 |
+| **Total** | **1,159** | **1,141,460,992** | **1.063068** |
+
+The seven MLA `kv_b_proj` layers (3, 7, 11, 15, 19, 23, 26) each have 2,359,296 bytes of source tensors: U32 weight [8192,64] plus BF16 scales and biases [8192,8]. Across seven layers this is 16,515,072 bytes = **15.75 MiB** of checkpoint input.
+
+MLX-LM v0.32.1 `KimiLinear.sanitize()` confirms that these inputs are dequantized, reshaped, split into contiguous `wk`/`wv` arrays and requantized into `embed_q` and `unembed_out`. Therefore 15.75 MiB is not a valid conversion peak estimate. Intermediate arrays, lazy evaluation lifetime, allocator behavior and startup peak remain unmeasured. Source: https://github.com/ml-explore/mlx-lm/blob/v0.32.1/mlx_lm/models/kimi_linear.py
+
+**Host follow-up:** first snapshot 15:39 CST, second 18:30 CST. Swap used fell 24 MB (470.50→446.50 MB); cumulative swapouts did not increase (102,568 at both samples); swapins increased 1,841 pages (+28.77 MiB); compressor occupancy increased 12,215 pages (+190.86 MiB, to 4.405 GiB); system-wide free percentage moved 57%→56%. This is no observed swapout growth during the interval, not proof of a long-term plateau or model admission. The 5 GiB non-model reserve remains provisional.
+
+Full second-snapshot data and interpretation: [Host Operational Follow-up](../reports/host-operational-followup-2026-11-18-1830.md). Full exact category table and Kimi audit: [Kimi Linear G6.2 Exact Header Audit](../reports/kimi-linear-g6.2-exact-header-audit-2026-11-18.md).
+
+**Disposition:** checkpoint/header and shell-category accounting PASS; Kimi sanitizer conversion peak and actual MLX/Metal runtime peak NOT MEASURED; G6.3 remains PARTIAL / STATIC ONLY. No model was downloaded or executed.
