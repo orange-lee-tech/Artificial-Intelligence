@@ -243,3 +243,19 @@ Full pinned revisions, source links, arithmetic and exact artifact findings: [G6
 - 本地模型输出是不可信数据，不能修改预算、权限、白名单或审批策略。
 
 所有 Gate 初始为 NOT_TESTED。脚本存在、静态检查或 GitHub 提交不等于真实主机部署通过。详见 docs/ACCEPTANCE.md。
+
+### G6.2 — PACS model-stack decision framework (2026-11-18)
+
+- **Small model:** retain installed Qwen3.5-4B as measured baseline/fallback; do not replace it solely because Qwen3.5-9B exists. The 9B Dense model is only an optional small-model upgrade after task-suite and memory comparison.
+- **Primary text MoE pilot:** Kimi Linear 48B-A3B (48B total / 3B active), because streamlx explicitly lists `kimi_linear`, hybrid KDA/MLA reduces long-context cache growth, and its estimated expert-pool floor is ~0.77GiB. It is text-only; pair with OCR/accessibility or a sequential/remote vision helper.
+- **Multimodal MoE comparison:** Qwen3.6-35B-A3B (35B / 3B active, vision encoder, 40 layers, 256 experts, top-8 + shared). streamlx validates the Qwen3.5-MoE family; current serve-mlx/mlx-moe-stream docs describe a 16GB vision starting profile, but this is not a PACS M4 mini hardware pass.
+- **Stretch target:** Qwen3.5-122B-A10B (122B / 10B active, vision-capable); keep standard MLX+streamlx separate from TurboQuant custom format. Static fit is conditional; full vision-streaming and sustained DSH/GUI use remain unverified.
+- **Mistral Small 4:** retain as P1 architecture/quality and `mistral4` adapter audit, not eliminated. Official spec says 119B total / 6B active in MoE (8B including embeddings/output), 128 experts, top-4, image input. No explicit streamlx adapter.
+- **Routing:** top-k count is checkpoint-fixed per token (Kimi/Qwen top-8; Mistral top-4); task-level routing to 4B/tools is the supported way to avoid invoking the large model. Do not reduce top-k without quality regression tests.
+- **16GiB policy:** provisional 5GiB whole-host non-model reserve; 4K start, concurrency 1, one model process, no co-resident 4B runner, no MTP/draft or GUI/Office concurrency in first pilot. Track shell + expert pool + context state + prompt cache + prefill/vision scratch + MLX/Metal runtime; do not infer RAM from active parameter count.
+- **Context/cache:** keep stable prefixes for prompt-cache reuse; semantic compaction is not itself a cache hit. Measure prompt-prefix cache and expert-weight cache separately. Accessibility/OCR first; screenshot ROI only; compact task state and archive full logs/images outside the active prompt.
+- **Nodes:** F117 (i7-7700HQ, 32GB RAM, GTX1050Ti 4GB) is a separate helper/tool node, not pooled memory and not an MLX/Metal host. T470s (i5-6300U, 20GB, Intel HD520) is an admin/client endpoint.
+- **Qwen3.5-9B:** small-model replacement candidate only, not a replacement for the 48B MoE track.
+
+Full decision matrix, context policy, local permissions, node roles and source references: [G6 Runtime Compatibility Audit / G6.2 PACS model-stack decision framework](research/g6-runtime-compatibility-audit-2026-11-17.md#7j-pacs-model-stack-decision-framework-2026-11-18)。
+
