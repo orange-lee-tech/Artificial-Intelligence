@@ -660,7 +660,7 @@ Assuming the MLA cache stores 512 latent KV values plus 64 RoPE-key values per t
 | 512K | 3.938 GiB |
 | 1,048,576 | 7.875 GiB |
 
-KDA recurrent matrix state is fixed with sequence length. Using 20 layers × 32 heads × 128 × 128 state elements gives 20 MiB at 16-bit or 40 MiB at 32-bit, plus short-convolution state. Actual runtime state dtype/layout must be checked before treating this as an exact number.
+KDA recurrent matrix state is fixed with sequence length. The pinned MLX-LM v0.32.1 `gated_delta_update` explicitly initializes state as FP32 with shape [B, 32, 128, 128] per KDA layer: 20 × 32 × 128 × 128 × 4 bytes = 40 MiB. Kimi's 20 KDA layers also retain q/k/v short-convolution states: each is [B, 3, 4096], three arrays per layer, adding 1.406 MiB if activations are 16-bit or 2.813 MiB if 32-bit. With 16-bit MLA KV, source-derived total state is approximately 72.906–74.313 MiB at 4K (0.0712–0.0726 GiB), and 104.406–105.813 MiB at 8K (0.1020–0.1033 GiB). Activation dtype and actual allocator footprint still require runtime confirmation.
 
 These estimates omit allocator padding, cache metadata, prefill scratch, vision buffers, model shell and expert pool. The 1M model limit must not be used as the PACS context setting: at 16-bit MLA-cache assumptions the cache alone is 7.875 GiB, before every other runtime and host process.
 
@@ -669,8 +669,8 @@ These estimates omit allocator padding, cache metadata, prefill scratch, vision 
 - **Semantic compaction** shortens the active prompt: produce a structured state summary, preserve the full event log/artifacts externally, start a new shorter sequence and rebuild the model state from the compact prompt. It trades some verbatim history for a smaller active context.
 - **Prefix/prompt caching** retains computed KV/recurrent state to avoid recomputing an unchanged prefix. It does not shorten the prompt or erase its state memory.
 - **Disk prompt cache** can reduce retained RAM but adds SSD I/O and disk use. streamlx documents a byte-capped RAM prompt-cache LRU and an optional segmented SSD cache (kv-cache-dir, bounded by kv-cache-gib). The PACS TS900 is also the expert-weight source, so using it for prompt-cache reads/writes may contend with expert streaming; this must be benchmarked, not assumed free.
-- streamlx's paged cache stores ordinary token-sliced KV cache segments, but recurrent ArraysCache layers store their whole state at segment ends. Hybrid recurrent/attention caches therefore restore only at segment boundaries rather than arbitrary token divergence. Kimi's exact cache adapter, compaction/restart behavior and branch handling require source-level and later isolated correctness audit.
-- streamlx also documents byte-capped prompt-cache and MLX allocator caches, memory-gib expert-pool resizing as the sequence cache grows, and prefill-memory-gib to bound prefill extras. These are useful mechanisms, not proof that every Kimi path is safe. The exact defaults and Kimi support must be pinned and reviewed before use.
+- streamlx's paged cache stores ordinary token-sliced KV cache segments, but recurrent ArraysCache layers store their whole state at segment ends. Hybrid recurrent/attention caches therefore restore only at segment boundaries rather than arbitrary token divergence. MLX-LM v0.32.1 Kimi uses ArraysCache(size=4) for KDA and KVCache for MLA. Kimi's exact cache adapter, compaction/restart behavior and branch handling still require isolated correctness audit.
+- streamlx also documents byte-capped prompt-cache and MLX allocator caches, memory-gib expert-pool resizing as the sequence cache grows, and prefill-memory-gib to bound prefill extras. These are useful mechanisms, not proof that every Kimi path is safe. The generic Kimi structural path is source-matched, but the exact Kimi runtime path still requires a bounded correctness test.
 - Quantized KV, rotating/sliding cache or reduced context are potential controls only after confirming they support Kimi's hybrid KDA+MLA cache and preserve quality. Do not silently truncate or quantize state in the first correctness baseline.
 
 ### Screenshot and visual-input policy
@@ -1225,13 +1225,13 @@ These are 4K estimates at batch 1, BF16 state/cache assumption; cache object lay
 | Kimi | 7 MLA layers, compressed KV rank512 + RoPE key64, 4K | 31.5 MiB |
 | Kimi | 20 KDA recurrent matrices, 32 heads ×128×128, BF16 | ~20 MiB |
 | Kimi | KDA short-convolution and metadata | small additional amount; not exact |
-| **Kimi total** | **4K state allowance** | **0.06 GiB** |
+| **Kimi total** | **4K state allowance** | **0.073 GiB conservative source-derived cap** |
 | Granite | 36 Mamba-2 state tensors, 48×64×128 BF16/layer | ~27 MiB |
 | Granite | 4 attention layers, 4 KV heads ×128, K+V BF16, 4K | 32 MiB |
 | Granite | Mamba convolution state and metadata | small additional amount; not exact |
 | **Granite total** | **4K state allowance** | **0.06 GiB** |
 
-Combined model state allowance at 4K is **0.12 GiB**. At 8K the shape-derived combined allowance remains roughly 0.17 GiB. This means context state is not the dominant resident-memory term for these hybrid architectures at 4K/8K; full Granite weights, Kimi expert pool, runtime, scratch and allocator caches dominate.
+Combined model state allowance at 4K is **0.12 GiB**. At 8K, the Kimi state estimate is approximately 0.102–0.103 GiB; a combined Kimi + Granite estimate must be recalculated if that historical dual-resident scenario is ever reconsidered. This means context state is not the dominant resident-memory term for these hybrid architectures at 4K/8K; full Granite weights, Kimi expert pool, runtime, scratch and allocator caches dominate.
 
 Prompt-prefix cache is separate from KV/recurrent state. Initial combined prompt-cache cap: **0.25 GiB** (Kimi up to 0.25 GiB; Granite prefix reuse disabled initially unless separately bounded). Do not confuse semantic compaction with prefix-cache reuse.
 
@@ -1364,3 +1364,6 @@ The first bounded pilot, if separately authorized, should begin with a 2 GiB poo
 The 2026-11-18 user host snapshot had 57% system-wide free percentage, 470.50 MB current swap, about 4.22 GiB physically occupied by compressor and no thermal/performance warning. These values are not a direct model-allocatable-memory measurement. A second time-separated snapshot is still required to assess swap/compressor trends.
 
 Full calculations and source links: [Kimi Linear G6.2 Exact Header Audit](../reports/kimi-linear-g6.2-exact-header-audit-2026-11-18.md).
+
+
+**Next metadata-only step:** [Kimi non-routed shell breakdown script](../scripts/mac/g6.2-kimi-shell-breakdown.py) groups the exact 1.063068 GiB non-routed tensor bytes and reports the original MLA `kv_b_proj` tensors that MLX-LM's Kimi sanitizer dequantizes/re-quantizes. It reads headers only and fails closed if HTTP Range is unavailable.
