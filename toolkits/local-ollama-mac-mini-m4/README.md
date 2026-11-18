@@ -137,33 +137,6 @@ node scripts/mac/benchmark.mjs
 - **16GB 硬约束。** 模型权重在 SSD 不代表零内存；必须为 macOS、DSH、runtime、非专家 trunk、专家缓存、KV cache 和临时 buffer 留余量。初始采用单请求、短上下文、运行时自动/保守 cache，记录 Memory Pressure、swap、RSS 和 tokens/s；任何持续 swap thrash / memory pressure yellow-red 即停止。
 - **当前不下载 35B。** 先修复 Ollama G3。之后只在隔离目录审计运行时与模型架构的精确兼容性。`serve-mlx` 是 pre-release 单用户 server，公开清单中的 tested checkpoints 与 Qwen3.5-35B-A3B 不能自动等同；不允许仅按“35B-A3B”名称推断兼容。
 
-## G6.3 — Qwen3.5-122B-A10B 隔离硬件 Smoke Test（2026-11-18）
-
-G6.2/G6.3 source-level gate 已通过，下一步仅执行一次隔离硬件试验。执行脚本：
-
-~~~bash
-bash scripts/mac/g6.3-qwen35-122b-smoke.sh
-~~~
-
-固定首轮参数：
-
-- TurboQuant 3-bit checkpoint：`manjunathshiva/qwen3.5-122b-tq3`
-- immutable revision：`2c7a3a9da6b51053d77fc17591e5e0718c4ef60b`
-- external TS900：`/Volumes/SSD`
-- expert cache：3 GiB
-- short context：8K envelope
-- batch/concurrency：1
-- `--max-active-experts 0`（保持模型原生 top-8 routing；不得用默认 K=4）
-- `--prefetch-workers 8`
-- `--prefetch-ahead 0`
-- fan-out：OFF
-- page cache：OFF
-- wired memory：OFF
-- MTP/draft：OFF
-- 不停止 DSH；若 Ollama 报告已有 resident model，脚本直接停止，不自动杀进程。
-
-脚本将 runtime、HF cache、checkpoint 和证据目录放在 TS900；不修改 Ollama、DSH Desktop Profile、MCP、凭据或系统权限。首轮只产生一次短文本生成和完整前/后内存、Swap、进程及 runtime stderr 证据。基线通过后，才允许单独调整到 4 GiB cache 做 A/B。
-
 ## G6 — Runtime 兼容性审查（2026-11-17）
 
 **当前状态：G6.1 SOURCE AUDIT COMPLETE；G6 总体仍 IN PROGRESS。** 本阶段只读审查了 streamlx、serve-mlx 和 llama.cpp MoE disk-paging PoC 的源码、依赖、许可证、模型适配、专家读取、缓存、预取及内存保护路径。没有安装 Runtime，没有下载模型，没有修改 Ollama / DSH 生产配置。
