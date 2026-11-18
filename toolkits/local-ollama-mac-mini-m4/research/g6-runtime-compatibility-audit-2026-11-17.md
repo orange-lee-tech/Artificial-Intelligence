@@ -346,7 +346,7 @@ Exact MLX checkpoint:
 
 The model index/commit shows six safetensors shards and expert tensor keys in the stacked layout, including `model.layers.N.mlp.switch_mlp.{gate_proj,up_proj,down_proj}.{weight,scales,biases}`. This is a direct structural match for streamlx's documented `switch_mlp` byte-range streaming path.
 
-**Runtime match:** streamlx README explicitly lists `kimi_linear` among the validated model families. This is stronger evidence than merely sharing a generic MoE label. It is still not proof that this exact immutable 4-bit checkpoint revision was exercised by the streamlx author on a 16 GiB Mac mini.
+**Runtime match (corrected 2026-11-18):** the inspected streamlx commit README/model table does not explicitly list Kimi as an end-to-end validated checkpoint. MLX-LM v0.32.1 implements `KimiSparseMoE.switch_mlp`, matching streamlx's generic stacked-expert wrapper. This is source-level structural compatibility, not explicit Kimi validation or proof of a 16 GiB hardware run.
 
 ### Important implementation detail: top-k config key spelling
 
@@ -483,7 +483,7 @@ Expert compute shape sanity check (derived, not a benchmark): assuming three Swi
 Thus Mistral's top-4 does not imply half the routed-expert matrix work: its expert intermediate width is twice Qwen's. At 4-bit group-64 with estimated scale/bias overhead, both have a shape-derived minimum expert-slot floor around 1.9 GiB. Exact index parsing, layer-specific tensors, shared experts, shell and runtime buffers remain necessary.
 
 Runtime status:
-- streamlx explicitly validates qwen3_5_moe, kimi_linear and laguna; it does not explicitly list mistral4.
+- streamlx's inspected README identifies generic stacked `switch_mlp` MoE support and shows Qwen3.6 as a tested example. It does not explicitly list Kimi Linear as an end-to-end validated checkpoint; no explicit `mistral4` adapter is listed.
 - Mistral's MLX conversion exists (67.8 GB) and uses model_type mistral4, 36 layers, 128 experts and top-4. The existence of an MLX conversion is not proof that its tensor naming, expert bundle layout, quantization metadata and loader path are compatible with streamlx.
 - Therefore Mistral should be **P1 architecture/quality and adapter-audit candidate**, not P2/eliminated. If adapter work passes, it may be a better resource/performance choice for workloads that value lower total active parameters and configurable reasoning. It is not yet the first 16GB pilot because the runtime path is less verified.
 - Qwen remains **P0 8–10B capability target**, with standard MLX+streamlx and separate TurboQuant paths kept distinct.
@@ -491,7 +491,7 @@ Runtime status:
 ### Kimi Linear 48B-A3B vs existing Qwen3.5-4B
 
 The installed qwen3.5:4b is a dense 4B model: essentially all 4B parameters participate in each token's forward pass. It is not a 4B-active MoE.
-Kimi Linear 48B-A3B is a sparse MoE: 48B total / 3B active, 27 layers (first dense, 26 MoE), 256 routed experts, top-8 + one shared expert, 20 KDA linear-attention layers + 7 MLA layers. Its inspected MLX 4-bit checkpoint is 27.6 GB and streamlx explicitly lists kimi_linear as a validated family.
+Kimi Linear 48B-A3B is a sparse MoE: 48B total / 3B active, 27 layers (first dense, 26 MoE), 256 routed experts, top-8 + one shared expert, 20 KDA linear-attention layers + 7 MLA layers. Its inspected MLX 4-bit checkpoint is 27.6 GB. MLX-LM v0.32.1 exposes the stacked `KimiSparseMoE.switch_mlp` structure expected by streamlx's generic path; this is a structural match, not an explicit upstream Kimi end-to-end validation.
 
 For a shape-only routed-expert calculation, Kimi has 26 × 8 × 3 × 2304 × 1024 = 1.472B routed-expert parameters selected across all MoE layers per token. Estimated 4-bit group-64 minimum slot floor from the inspected project report is about 0.77 GiB. This is lower than the rough Qwen/Mistral 1.9 GiB floors, but is not the whole model memory budget and does not establish a measured speed.
 
@@ -608,7 +608,7 @@ Before any large checkpoint download or execution, require all of the following 
 
 ### Model-specific preflight interpretation
 
-- **Kimi Linear 48B-A3B:** lower cold expert-read floor (~0.77 GiB/token) and lower top-k slot floor (~0.77 GiB) than Qwen 122B; streamlx lists kimi_linear. This makes Kimi the preferred first static feasibility candidate, not yet approved for execution. Exact shell, attention state, cache and total memory remain unparsed.
+- **Kimi Linear 48B-A3B:** lower cold expert-read floor (~0.77 GiB/token) and lower top-k slot floor (~0.77 GiB) than Qwen 122B. MLX-LM's Kimi `switch_mlp` layout matches streamlx's generic wrapper, but Kimi is not explicitly listed as an end-to-end validated checkpoint in the inspected streamlx README. This makes Kimi the preferred first static feasibility candidate, not yet approved for execution. Exact header accounting and trunk bytes are now available; runtime peak, attention-state allocation and total memory remain unmeasured.
 - **Qwen3.5-122B-A10B:** 10B active remains a research target, not an accepted 16GB deployment. The 4-bit checkpoint's 69.6GB disk size and active-parameter label do not prove feasibility. The standard MLX+streamlx shell accounting and expert pool must fit the 11GiB provisional model envelope with reserve. TurboQuant's third-party 11.3GB reported peak at 8GB cache is not a PACS result and has not established safe DSH co-residency or thermal equilibrium.
 - **Mistral Small 4:** remains P1 for architecture/quality and adapter audit; thermal safety cannot be inferred from 6.5B active. It needs the same full accounting and a validated mistral4 runtime path.
 
@@ -931,7 +931,7 @@ For the Qwen 122B shape estimate (48 MoE layers, 256 experts/layer, 5.0625 MiB/e
 
 The 2.5 GiB proposal therefore provides only two slots above the eight experts needed by each layer for one decode token. Three GiB provides four extra slots. Under an independent uniform-routing thought experiment, expected hits would be roughly the resident fraction (about 3.9–4.7% at these budgets). **This is not a measured or predicted model hit rate**: real routers can have strongly skewed hot-expert distributions, which may improve locality substantially. The missing evidence is an actual representative routing trace and measured per-layer hit/miss data.
 
-For comparison, the pinned Kimi Linear 48B-A3B source-level shape audit has 26 MoE layers and an estimated 3.797 MiB/expert. With the same nominal budget, the implementation would allocate about 25 slots/layer at 2.5 GiB (about 2.41 GiB actual) or 31 slots/layer at 3 GiB (about 2.99 GiB actual): about 9.8% or 12.1% of its 256 expert IDs per layer under the same uniform thought experiment. Kimi's structural `switch_mlp` layout and `kimi_linear` family are explicitly listed by streamlx; the exact pinned Kimi checkpoint still needs its own runtime correctness test. Kimi Linear is text-only.
+For comparison, the pinned Kimi Linear 48B-A3B exact header audit confirms 26 MoE layers and 3,981,312 bytes (3.797 MiB) per expert. At 2/3/4 GiB pool targets, streamlx's integer slot calculation yields 20/31/41 slots per layer and 1.928/2.989/3.953 GiB actual pools. Kimi's stacked `switch_mlp` layout matches streamlx's generic path through MLX-LM v0.32.1; the inspected streamlx README does not explicitly list Kimi as end-to-end validated. A Kimi-specific runtime correctness test remains required. Kimi Linear is text-only.
 
 ### 2. Decode cold-read and cache-miss exposure
 
@@ -1090,7 +1090,7 @@ This section separates the small-model decision from the primary MoE decision. T
 1. **Kimi Linear 48B-A3B — P0 text-first MoE pilot candidate.**
    - 48B total / 3B active; 27 layers (first dense, 26 MoE); 256 experts, top-8 + one shared; 20 KDA linear-attention + 7 MLA layers.
    - Exact MLX 4-bit candidate: `mlx-community/Kimi-Linear-48B-A3B-Instruct-4bit@919175d75427f1c10cfc17e7254b53295edddf72`, 27.6GB.
-   - streamlx explicitly lists `kimi_linear` as validated. Shape-derived minimum expert pool ≈0.77GiB; Kimi's hybrid cache is favorable for long context. Exact index byte accounting, shell size, KDA/MLA runtime cache behavior and 16GiB hardware peak are still open.
+   - MLX-LM v0.32.1 implements Kimi's `switch_mlp` structure, matching streamlx's generic wrapper; this is not an explicit streamlx end-to-end validation. The 2026-11-18 exact header audit confirms a 0.771240 GiB top-8 slot floor and 1.063068 GiB non-`switch_mlp` tensor payload. KDA/MLA runtime cache behavior and 16GiB hardware peak remain open.
    - Text-generation-only checkpoint: no native image input. Pair with OCR/accessibility or a sequential/remote vision helper.
 2. **Qwen3.6-35B-A3B — P0/P1 multimodal MoE comparison.**
    - 35B total / 3B active; 40 layers; 256 experts, 8 routed + one shared; hybrid Gated DeltaNet/full attention; native vision encoder and image input.
@@ -1163,7 +1163,7 @@ A higher-runtime/high-cache scenario can exceed the 16 GiB envelope. **Simultane
 - Immutable revision: `919175d75427f1c10cfc17e7254b53295edddf72`
 - Config: `kimi_linear`, 27 layers; first dense + 26 MoE; 256 routed experts; top-8; one shared expert; hidden 2304; expert intermediate 1024; 20 KDA + 7 MLA; affine 4-bit/group64, router gates overridden to 8-bit.
 - HF tree displays 27.6 GB and six safetensors shards. The model page and config are pinned to the inspected revision.
-- streamlx explicitly validates `kimi_linear` and loads the trunk lazily while keeping routed expert tensors on SSD and using per-layer pools.
+- streamlx loads the trunk lazily, replaces stacked `switch_mlp` blocks, materializes the remaining model parameters and allocates per-layer pools. Kimi's MLX-LM v0.32.1 implementation matches this generic structure; the inspected streamlx README does not explicitly claim Kimi end-to-end validation.
 
 **Granite**
 
@@ -1172,7 +1172,7 @@ A higher-runtime/high-cache scenario can exceed the 16 GiB envelope. **Simultane
 - Official IBM H-Tiny config/index: 6,939,037,248 parameters; BF16 source index total_size 13,878,074,496 bytes; 40 layers (36 Mamba-2 + 4 attention), hidden 1536, 64 experts, top-6, expert intermediate 512, 48 Mamba heads ×64 head dim, state size128, 4 KV heads.
 - **Artifact identity is not fully closed:** the MLX model card conversion text names H-Tiny, but the Hugging Face model-tree relation currently points to H-Micro; the index/header and full immutable revision of the MLX quantized artifact have not been parsed in this audit. Treat 3.91 GB as a published size, not exact parsed tensor total. Do not download/use until the full revision, config and index/header are pinned and cross-checked.
 - MLX-LM documentation/model registry includes `granitemoehybrid`; this is architecture support evidence, not proof of this exact quantized artifact's correctness on the M4 mini.
-- **Do not assume streamlx streaming for Granite.** streamlx explicitly validates Kimi, Laguna and Qwen3.5-MoE and requires the standard stacked `switch_mlp` layout. The exact Granite MLX index layout has not been checked. Budget Granite conservatively as a fully resident 4-bit model.
+- **Do not assume streamlx streaming for Granite.** The inspected streamlx README documents the generic stacked `switch_mlp` path and names Qwen3.6 as a tested example. Kimi's layout has now been source-matched through MLX-LM, but not end-to-end validated; the exact Granite MLX index layout has not been checked. Budget Granite conservatively as a fully resident 4-bit model.
 
 ### 7K.3 Kimi weight-tensor ledger
 
@@ -1258,7 +1258,7 @@ Prefill target: 2048-token chunks or smaller. No MTP/draft, no speculative multi
 | Item | GiB | Status |
 |---|---:|---|
 | macOS + DSH + desktop/user apps reserve | 5.00 | provisional project reserve; actual baseline must be ≤5 |
-| Kimi non-expert shell | 1.03 | derived from rounded checkpoint size |
+| Kimi non-`switch_mlp` tensor payload | 1.063 | exact pinned index/header sum; runtime shell overhead and transform peak excluded |
 | Kimi expert pool | 2.00 | explicit cap |
 | Kimi 4K KDA/MLA state | 0.06 | shape-derived allowance |
 | Granite full 4-bit weights | 3.64 | published file size converted GB→GiB |
@@ -1299,9 +1299,9 @@ Use separate model processes/endpoints and a PACS global GPU semaphore. streamlx
 
 1. Pin the full immutable Granite MLX repo revision; resolve its H-Tiny/H-Micro model-tree metadata discrepancy.
 2. Parse the exact Granite MLX Safetensors index and shard headers; confirm all tensor names, shapes, quantized weight/scales/biases dtypes and exact total_size.
-3. Parse Kimi pinned index/header to replace the rounded 27.6GB subtraction and FP16 scale/bias assumption with exact byte ranges.
+3. Kimi pinned index/header and exact non-`switch_mlp` tensor bytes were parsed on 2026-11-18; remaining work is to measure runtime shell/transform peak, not to repeat the header sum.
 4. Inspect the pinned Granite MLX-LM implementation for lazy materialization, Mamba state dtype, attention cache dtype and prefill temporary allocations.
-5. Inspect streamlx Kimi cache and pool allocation paths to confirm 2 GiB means total per-layer slot budget and quantify per-layer alignment/metadata.
+5. streamlx pool allocation source is now inspected: `row_stride` is derived from exact tensor shape/dtype and pools allocate integer expert slots per layer. Hardware MLX/Metal allocation overhead and actual pool peak still require measurement.
 6. Establish whether separate MLX processes can enforce the stated allocator-cache caps and whether freed buffers are actually reclaimed from Metal.
 7. Recalculate if the measured idle DSH/macOS/app baseline exceeds 5 GiB.
 
@@ -1318,3 +1318,49 @@ No download, install, model execution, process restart, Ollama/DSH configuration
 - MLX-LM Granite hybrid model registry: https://github.com/ml-explore/mlx-lm
 - Independent M4 Max benchmark discussion (architecture/runtime corroboration only; not M4 mini evidence): https://github.com/ml-explore/mlx-lm/discussions/1847
 
+
+
+### 7L. G6.2 — Kimi exact Safetensors header and streamlx loader cross-check (2026-11-18)
+
+The user ran the pinned read-only HTTP-Range audit against `mlx-community/Kimi-Linear-48B-A3B-Instruct-4bit@919175d75427f1c10cfc17e7254b53295edddf72`.
+
+**Exact header audit: PASS.** The index and all six shard headers matched across 1,393 tensor keys. Only 165,621 bytes of header data were fetched; no tensor payload was downloaded.
+
+| Component | Exact bytes | GiB |
+|---|---:|---:|
+| All indexed tensors | 27,641,073,664 | 25.742756 |
+| Routed `switch_mlp` expert tensors | 26,499,612,672 | 24.679688 |
+| Non-`switch_mlp` tensors | 1,141,460,992 | 1.063068 |
+| 26-layer top-8 minimum pool floor | 828,112,896 | 0.771240 |
+
+There are 234 routed expert tensors (26 layers × 3 projections × 3 affine parts). Every layer has the same exact 3,981,312-byte per-expert bundle. Each layer's top-8 floor is 31,850,496 bytes.
+
+**Loader-source cross-check: SOURCE VERIFIED.**
+
+Pinned source:
+- streamlx `af9bbe88439212464e5f4cccfa91df75172056b1` (2026-11-17).
+- MLX-LM `v0.32.1`.
+
+MLX-LM's `KimiSparseMoE` contains `gate`, `switch_mlp` and `shared_experts`; Kimi decoder layers expose `model.layers`, with layers 1–26 routed MoE and layer 0 dense. Its sanitizer maps the expert tensors to the stacked `model.layers.N.mlp.switch_mlp.{gate_proj,up_proj,down_proj}` layout present in the checkpoint. Kimi `make_cache()` uses `ArraysCache(size=4)` for KDA layers and `KVCache()` for MLA layers.
+
+streamlx's generic loader uses `mlx_lm.load(..., lazy=True)`, wraps each `layer.mlp.switch_mlp` before `mx.eval(model.parameters())), then materializes the remaining trunk and allocates expert pools. Thus the exact 1.063068 GiB non-`switch_mlp` checkpoint tensor payload is the source-derived trunk weight payload expected to be materialized. It is not the full runtime shell peak; transformed tensors, MLX/Metal allocations, Python objects and temporary load buffers remain unmeasured.
+
+**Compatibility wording correction:** the inspected streamlx README/model table does not explicitly list Kimi Linear as an end-to-end validated checkpoint. The evidence is a generic structural match through MLX-LM v0.32.1, not explicit Kimi validation. The earlier statements that streamlx "explicitly lists" or "explicitly validates" `kimi_linear` were too strong and are corrected here.
+
+**Top-k key guard:** Kimi config uses `num_experts_per_token=8`; streamlx's `_routed_topk()` reads `num_experts_per_tok` and therefore falls back to default 8 for this checkpoint. A controlled invocation must pass `k=8` explicitly.
+
+**Pool allocation at the inspected streamlx commit:**
+
+| Requested budget | Integer slots/layer | Actual allocated pool |
+|---:|---:|---:|
+| 2 GiB | 20 | 1.928101 GiB |
+| 3 GiB | 31 | 2.988556 GiB |
+| 4 GiB | 41 | 3.952606 GiB |
+
+**Kimi-only provisional static envelope:** exact trunk tensor bytes + the above actual pool + 0.06 GiB shape-derived 4K KDA/MLA state + provisional 0.50 GiB runtime base + 0.25 GiB allocator cache + 0.25 GiB prompt cache + 0.75 GiB scratch gives model-side subtotals of 4.801 / 5.862 / 6.826 GiB for 2/3/4 GiB pool targets. Adding the provisional 5 GiB host reserve and 1.5 GiB uncommitted safety reserve gives 11.301 / 12.362 / 13.326 GiB planned totals. This is static arithmetic only; the host reserve is not yet validated by the one-point host snapshot.
+
+The first bounded pilot, if separately authorized, should begin with a 2 GiB pool target, 4K context, concurrency 1, explicit `k=8`, no MTP/draft, no other model resident, and `STREAMLX_KEEPALIVE=0`. Do not increase the pool to 3/4 GiB until correctness, actual MLX/Metal peak, swap trend and system pressure pass.
+
+The 2026-11-18 user host snapshot had 57% system-wide free percentage, 470.50 MB current swap, about 4.22 GiB physically occupied by compressor and no thermal/performance warning. These values are not a direct model-allocatable-memory measurement. A second time-separated snapshot is still required to assess swap/compressor trends.
+
+Full calculations and source links: [Kimi Linear G6.2 Exact Header Audit](../reports/kimi-linear-g6.2-exact-header-audit-2026-11-18.md).
