@@ -74,4 +74,4 @@ Swapouts: 102568
 Pageouts: 70520
 ```
 
-No model was started between the two baseline captures according to the audit sequence. No production service or configuration was changed.
+The user-provided 18:30 command output does not include an Ollama `/api/ps` or process-residency check, so model residency during the entire 15:39–18:30 interval is not independently established. This audit itself only performed metadata/source review; it did not load Kimi, install a runtime, or change production configuration.
