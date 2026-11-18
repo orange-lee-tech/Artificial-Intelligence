@@ -259,3 +259,17 @@ Full pinned revisions, source links, arithmetic and exact artifact findings: [G6
 
 Full decision matrix, context policy, local permissions, node roles and source references: [G6 Runtime Compatibility Audit / G6.2 PACS model-stack decision framework](research/g6-runtime-compatibility-audit-2026-11-17.md#7j-pacs-model-stack-decision-framework-2026-11-18)。
 
+
+
+### G6.3 — Kimi + Granite 双模型常驻静态内存审计（2026-11-18）
+
+- **结论：条件性静态可行，不是安全 PASS。** Kimi Linear 48B-A3B + Granite 4.0 H-Tiny 4-bit 双模型同时驻留、但全局推理并发=1，目标账本约 **9.09 GiB model-side**；另预留5 GiB macOS/DSH/应用空间和1.5 GiB未承诺安全余量，计划总量约 **15.59 GiB**，仅余0.41 GiB额外空间。
+- Kimi：26 MoE层、top-8；按affine 4-bit/group64和FP16 scales/biases估算，每专家3,981,312B；最低专家槽位约0.771GiB；首轮池上限2.0GiB；shell约1.03GiB（由27.6GB总checkpoint减估算专家权重）。
+- Granite：4-bit模型卡显示3.91GB（3.64GiB）。按40层、64专家、top-6、hidden1536、expert intermediate512，shape-derived全专家权重约3.164GiB，shell余量约0.477GiB。标准MLX-LM路径按全部3.64GiB常驻；active专家约0.297GiB已包含在全模型权重中，不得重复相加。
+- 4K状态估算：Kimi约0.06GiB（MLA KV + KDA recurrent state）；Granite约0.06GiB（Mamba2 state + attention KV）。状态不是主要内存成本。
+- 初始硬帽：Kimi pool 2GiB；allocator cache总计0.5GiB；prompt cache总计0.25GiB；runtime bases总计0.8GiB；活动模型scratch/startup peak 0.75GiB；MTP/draft关闭。
+- 两模型同时推理/同时Prefill为 **NO-GO**。双模型同时驻留只在实际非模型基线≤5GiB、model-side峰值≤9.5GiB、并保留≥1.5GiB headroom时才准入；任一超限则拒绝双驻留。
+- Granite MLX checkpoint 的完整 immutable revision、Safetensors index/header 和 H-Tiny/H-Micro 模型树元数据不一致仍待核对；不下载、不安装、不执行。Kimi index/header精确解析也未完成。**G6.3仍为PARTIAL / STATIC ONLY。**
+
+详细张量分类、公式、逐项预算、运行限制和待关闭问题：[G6 Runtime Compatibility Audit / 7K Dual-resident audit](research/g6-runtime-compatibility-audit-2026-11-17.md#7k-kimi-linear--granite-h-tiny-dual-resident-static-memory-audit-2026-11-18)。
+
