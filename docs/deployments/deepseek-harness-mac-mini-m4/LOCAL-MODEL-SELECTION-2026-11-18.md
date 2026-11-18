@@ -80,11 +80,11 @@
 
 ### 4.1 gpt-oss-120b
 
-OpenAI 将 gpt-oss-120b 定义为 117B 总参数、5.1B 激活参数、128 个专家、每 token 激活 4 个专家，并提供 low / medium / high 三档 reasoning effort。官方评估中，high reasoning 下 GPQA Diamond 为 80.1、MMLU 为 90.0、HLE 为 19.0、SWE-Bench Verified 为 62.4；这些评估使用官方 MXFP4 权重。citeturn640318search1turn640318search2
+OpenAI 将 gpt-oss-120b 定义为 117B 总参数、5.1B 激活参数、128 个专家、每 token 激活 4 个专家，并提供 low / medium / high 三档 reasoning effort。官方评估中，high reasoning 下 GPQA Diamond 为 80.1、MMLU 为 90.0、HLE 为 19.0、SWE-Bench Verified 为 62.4；这些评估使用官方 MXFP4 权重。
 
-OpenAI 同时提供 Apple Silicon Metal 参考实现，但官方仓库明确说明该实现不是 production-ready。citeturn296783search4
+OpenAI 同时提供 Apple Silicon Metal 参考实现，但官方仓库明确说明该实现不是 production-ready。
 
-第三方 TUFF 已支持在 16GB Apple Silicon 上对 GPT-OSS 120B 做 SSD expert streaming，并将其列为 16GB 可运行模型；但该项目的公开测试说明其主要基准机器是 16GB M2 MacBook Air，不能直接替代本机 M4 16GB 验收。citeturn496609search0
+第三方 TUFF 已支持在 16GB Apple Silicon 上对 GPT-OSS 120B 做 SSD expert streaming，并将其列为 16GB 可运行模型；但该项目的公开测试说明其主要基准机器是 16GB M2 MacBook Air，不能直接替代本机 M4 16GB 验收。
 
 **判断：**
 
@@ -99,13 +99,13 @@ gpt-oss-120b 的模型能力和 reasoning 控制值得保留，但当前在本�
 
 ### 4.2 Qwen3.6-35B-A3B
 
-Qwen 官方模型卡给出 35B 总参数、3B 激活、256 专家、8 routed + 1 shared、40 层，原生 262K 上下文。官方测试中，SWE-bench Verified 73.4、Terminal-Bench 2.0 51.5、Claw-Eval 68.7、MCPMark 37.0、GPQA 86.0、MMLU-Pro 85.2。citeturn167137search0turn617452search0
+Qwen 官方模型卡给出 35B 总参数、3B 激活、256 专家、8 routed + 1 shared、40 层，原生 262K 上下文。官方测试中，SWE-bench Verified 73.4、Terminal-Bench 2.0 51.5、Claw-Eval 68.7、MCPMark 37.0、GPQA 86.0、MMLU-Pro 85.2。
 
-官方 MLX 4-bit checkpoint 当前约 20.4 GB，architecture 为 `qwen3_5_moe`。citeturn423081search0
+官方 MLX 4-bit checkpoint 当前约 20.4 GB，architecture 为 `qwen3_5_moe`。
 
-streamlx 已明确将 `qwen3_5_moe` / Qwen3.6 列为支持的专家流式家族；其公开 32GB M4 Air 4-bit 测试显示 8 GiB expert budget 时 resident 约 11GB，约 7.2 tok/s，但这不是本机 16GB M4 mini 的结果。citeturn167137search2
+streamlx 已明确将 `qwen3_5_moe` / Qwen3.6 列为支持的专家流式家族；其公开 32GB M4 Air 4-bit 测试显示 8 GiB expert budget 时 resident 约 11GB，约 7.2 tok/s，但这不是本机 16GB M4 mini 的结果。
 
-TurboQuant-MLX 另有 base M4 16GB mini 的 Qwen3.6 3-bit 实测：8GB cache 时约 9.4GB peak RSS、约 4.5 tok/s，且完整 top-k 路由可做到与其 fully-resident quantized build bit-identical。该量化版本不是标准 4-bit，因此不能直接证明标准 4-bit checkpoint 在本机的内存包络。citeturn847520search1
+TurboQuant-MLX 另有 base M4 16GB mini 的 Qwen3.6 3-bit 实测：8GB cache 时约 9.4GB peak RSS、约 4.5 tok/s，且完整 top-k 路由可做到与其 fully-resident quantized build bit-identical。该量化版本不是标准 4-bit，因此不能直接证明标准 4-bit checkpoint 在本机的内存包络。
 
 **判断：**
 
@@ -121,9 +121,9 @@ TurboQuant-MLX 另有 base M4 16GB mini 的 Qwen3.6 3-bit 实测：8GB cache 时
 
 ### 4.3 Qwen3.5-122B-A10B
 
-Qwen 官方模型卡给出 122B 总参数、10B 激活、256 专家、8 routed + 1 shared、48 层，原生 262K 上下文。官方报告中，Qwen3.5-122B-A10B 的 MMLU-Pro 为 86.7、GPQA Diamond 86.6、HLE with CoT 25.3、SWE-bench Verified 72.0、Terminal Bench 2 为 49.4。citeturn470971search0
+Qwen 官方模型卡给出 122B 总参数、10B 激活、256 专家、8 routed + 1 shared、48 层，原生 262K 上下文。官方报告中，Qwen3.5-122B-A10B 的 MMLU-Pro 为 86.7、GPQA Diamond 86.6、HLE with CoT 25.3、SWE-bench Verified 72.0、Terminal Bench 2 为 49.4。
 
-与 gpt-oss-120b 的公开对照中，Qwen3.5-122B-A10B 在 MMLU-Pro、GPQA Diamond、HLE 和 SWE-bench Verified 等指标上整体更有优势；但两家测试协议并非完全一致，因此只能作为候选排序依据，不能直接视为严格 head-to-head 实验。citeturn470971search0turn640318search2
+与 gpt-oss-120b 的公开对照中，Qwen3.5-122B-A10B 在 MMLU-Pro、GPQA Diamond、HLE 和 SWE-bench Verified 等指标上整体更有优势；但两家测试协议并非完全一致，因此只能作为候选排序依据，不能直接视为严格 head-to-head 实验。
 
 当前最关键的证据来自 TurboQuant-MLX：
 
@@ -134,7 +134,7 @@ Qwen 官方模型卡给出 122B 总参数、10B 激活、256 专家、8 routed +
 - Decode 约 1.1 tok/s；
 - expert hit-rate 约 44.6%；
 - 该路径的瓶颈主要是 SSD expert I/O；
-- 模型在 16GB 上能够实际运行。citeturn423081search1turn483759search1
+- 模型在 16GB 上能够实际运行。
 
 这里有一个非常重要的区别：
 
@@ -423,3 +423,19 @@ gpt-oss-120b 只有在本机硬件准入和实际任务质量均表现出明显�
 
 **当前最值得做的下一步：先完成 Qwen3.5-122B-A10B 的精确运行时与内存准入审计。**
 
+
+
+## 13. 主要外部资料
+
+- OpenAI gpt-oss model card: https://huggingface.co/openai/gpt-oss-120b
+- OpenAI open models: https://openai.com/open-models/
+- OpenAI gpt-oss reference implementation: https://github.com/openai/gpt-oss
+- Qwen3.6-35B-A3B model card: https://huggingface.co/Qwen/Qwen3.6-35B-A3B
+- Qwen3.6-35B-A3B MLX 4-bit: https://huggingface.co/mlx-community/Qwen3.6-35B-A3B-4bit
+- streamlx: https://github.com/srcterm/streamlx
+- Qwen3.5-122B-A10B model card: https://huggingface.co/Qwen/Qwen3.5-122B-A10B
+- Qwen3.5-122B-A10B TurboQuant 3-bit: https://huggingface.co/manjunathshiva/qwen3.5-122b-tq3
+- TurboQuant-MLX: https://github.com/manjunathshiva/turboquant-mlx
+- TUFF: https://github.com/tuff-app/TUFF
+
+**证据边界：** 外部第三方 16GB 运行结果仅用于决定是否值得进入本机测试；不能代替 PACS 本机实测。
