@@ -66,6 +66,9 @@ PY
 fi
 
 pgrep -fl 'ollama_llama_server|ollama runner|ollama serve' >"${RUN_DIR}/ollama-processes.txt" || true
+if pgrep -f 'ollama_llama_server|ollama runner' >/dev/null 2>&1; then
+  die "an Ollama model runner is already resident; refusing co-residency"
+fi
 
 {
   echo "timestamp=$(date -Iseconds)"
