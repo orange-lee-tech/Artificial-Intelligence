@@ -417,3 +417,6 @@ Inspected `IDAH-BITBOX/serve-mlx` main at `d7021c9d6e66afbcf013b6a1b87431236b2d0
 
 **Potential blocker to verify before manifest preparation:** PACS's audit accepts `text_config` at the top level or inside `quantization`; serve-mlx's current manifest builder reads only top-level `text_config`. Confirm the pinned config's exact key location. No runtime installation, checkpoint download, model load or production DSH/MCP change is authorized. Full source review and gates: [PACS single-model + DSH integration review](reports/pacs-single-model-dsh-integration-review-2026-11-20.md).
 
+
+
+**Runtime accounting clarification:** the 540 MiB Top-8 value is cumulative all-cold expert read volume across a token, not necessarily simultaneous resident memory. serve-mlx's VLM-safe default uses no resident expert cache and materializes one routed expert bundle at a time; its cached mode uses a global byte-budgeted LRU. The streamlx slot-pool floor must not be applied automatically to serve-mlx. A no-cache VLM correctness baseline is the lowest-risk first runtime profile; cache A/B comes only after measured headroom.
