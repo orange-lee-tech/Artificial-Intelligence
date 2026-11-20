@@ -21,8 +21,8 @@ Audio, video generation, image generation and other modalities are not primary r
 - DSH's Models settings support a custom model API for self-hosted endpoints and can speak OpenAI Chat Completions, OpenAI Responses, Anthropic Messages or Gemini API.
 - A custom model can declare per-model input modalities, including `[text, image]`. This declaration is a capability claim, not an endpoint test; the configured server must genuinely accept the declared inputs.
 - Computer Use exposes application/window selection, Accessibility Tree reads, screenshots and authorized input.
-- The normal CUA screenshot path resolves the Agent's model route and rejects a model that does not declare image input with `MODEL_DOES_NOT_SUPPORT_IMAGES`.
-- A configured `screenshotTarget` controls screenshot image sizing/bytes for capture/forwarding; it does not turn a text-only model into a vision model or route the screenshot to a separate model automatically.
+- Without an explicit `screenshotTarget`, the CUA screenshot path resolves the Agent's model route and rejects a model that does not declare image input with `MODEL_DOES_NOT_SUPPORT_IMAGES`.
+- A configured `screenshotTarget` controls screenshot sizing/bytes and can bypass that route precheck for capture/forwarding; it does not turn a text-only model into a vision model or route the screenshot to a separate model. The actual model request still needs an endpoint that accepts image content.
 - Therefore DSH gives the agent the *capture and action tools*, but screenshot semantics still require an image-capable model route. DOM/AX/OCR can supply structured text to a text model without image understanding.
 
 Official references:
