@@ -92,3 +92,17 @@ The Qwen3.5-9B dense VLM remains a lower-complexity control/fallback candidate, 
 Qwen3.6-35B-A3B is the **first candidate to qualify**, not yet the final deployed model. If its exact vision shell or DSH integration fails the 16 GiB envelope, reconsider Kimi with an explicit AX/OCR-first perception design or the dense Qwen3.5-9B VLM. Do not jump automatically to 122B.
 
 No weight download, runtime installation, model execution, service restart, process termination or production configuration change is authorized by this review.
+
+
+### G6.3 audit run 1 — 2026-11-20
+
+The first Mac mini run successfully read the config, index, and all four Safetensors shard headers with verified HTTP Range responses. The index declared 20,401,929,952 tensor bytes across four shards. No tensor payloads were downloaded.
+
+The run failed closed at MoE layer classification: the script expected the key prefix `language_model.model.layers.N.mlp.experts.*`, while Qwen3.6 checkpoint naming also uses `model.language_model.layers.N.mlp.experts.*` (as seen in the upstream Qwen3.6 index). The model's MoE structure was not disproved; only the script's name matcher failed.
+
+Patch applied to `g6.3-qwen36-vision-header-audit.py`:
+- accept `model.language_model.layers.N`, `language_model.layers.N`, `language_model.model.layers.N`, and `model.language_model.model.layers.N` prefixes;
+- keep `mtp.layers.N` outside the routed language-model expert pool;
+- if classification still fails, print up to 20 actual `.mlp.experts.` tensor keys to make the next diagnosis evidence-based.
+
+A synthetic regex check passed for all supported prefixes and excluded `mtp.layers.0`. This is a code-level check only; the patched audit has **not yet been rerun against the remote Safetensors headers**. The audit remains incomplete until the user reruns it and it passes exact index/header accounting, all expected MoE layers, vision tensor classification and byte totals.
