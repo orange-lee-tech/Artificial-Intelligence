@@ -393,3 +393,19 @@ The pinned 4-bit MLX checkpoint does **not** use per-expert `*.mlp.experts.N.*` 
 `language_model.model.layers.N.mlp.switch_mlp.{gate_proj,up_proj,down_proj}.{weight,scales,biases}`.
 The audit now validates the leading dimension equals 256, accounts all three projections and affine metadata per layer, and reports MTP tensors separately. The second audit run exposed this key-family mismatch; it did not show missing MoE weights. Corrected script is committed, but still needs a Mac mini rerun before any cache/memory calculations are accepted.
 
+
+
+### 2026-11-20 — Qwen3.6 G6.3 exact header audit PASS
+
+The Mac mini successfully completed the pinned read-only audit for `mlx-community/Qwen3.6-35B-A3B-4bit@38740b847e4cb78f352aba30aa41c76e08e6eb46`. All four Safetensors headers matched the index exactly; 2,090 tensor keys summed to the declared 20,401,929,952 bytes (19.000778 GiB). No tensor payloads were downloaded.
+
+- Routed stacked experts: **18,119,393,280 bytes / 16.875 GiB** across 40 layers and 360 tensors.
+- Non-expert shell: **2,282,536,672 bytes / 2.125778 GiB**.
+- Vision: **893,142,496 bytes / 0.831804 GiB** (333 tensors).
+- Non-vision shell: **1,389,394,176 bytes / 1.293974 GiB**.
+- MTP tensors in this checkpoint: **0**.
+- Per-layer expert bundle: **1,769,472 bytes**; all 40 layers match.
+- One-token Top-8 expert floor: **566,231,040 bytes / 540 MiB / 0.527344 GiB**.
+
+This is an exact metadata/header accounting PASS, **not** a 16 GiB runtime-memory or DSH integration PASS. Preliminary 2/3/4 GiB cache arithmetic and a config-derived 4K/8K sequence-state estimate are recorded in [the PACS single-model + DSH review](reports/pacs-single-model-dsh-integration-review-2026-11-20.md). On the recorded 51%-free host snapshot, 4 GiB cache is rejected for the first trial; 3 GiB is tight; 2 GiB is the safer initial candidate. Actual runtime/allocator peak, image scratch, expert read-span behavior, cache hit rate and I/O/Metal overlap remain unmeasured.
+
