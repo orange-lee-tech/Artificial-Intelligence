@@ -445,3 +445,8 @@ The upstream MLX-VLM Qwen3.5-MoE package has the sparse module names expected by
 **16GB vision policy:** serve-mlx defaults `--vision` to resident expert cache off, at least 2GiB scratch reserve, and 256-token prefill chunks. Do not force a 3GiB expert cache into the first VLM smoke test. The inspected serve-mlx tests cover synthetic text adapters, not an end-to-end Qwen3.6 VLM image load. Actual 4-bit VLM loading, vision-tower population, host-memory admission, and DSH image/tool round-trip remain untested.
 
 The G6.3 header audit script now also reports vision tensor dtypes and module fields without downloading tensor payloads. Full details: [PACS integration review](reports/pacs-single-model-dsh-integration-review-2026-11-20.md).
+
+
+### G6.3 header audit extension
+
+The pinned read-only audit now checks all 40 layers' router and shared-expert gates in the Safetensors headers: 80 module paths, each with `weight`, `scales`, and `biases` (240 tensor entries expected). It accepts both raw checkpoint and sanitized MLX path prefixes. It also reports the vision tower's dtype and tensor-field distribution plus bounded name/shape samples. No tensor payloads are read. Run the committed script before runtime qualification.
