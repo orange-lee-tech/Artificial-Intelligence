@@ -380,3 +380,8 @@ Full design and next qualification sequence:
 [PACS single-model + DSH integration review](reports/pacs-single-model-dsh-integration-review-2026-11-20.md).
 
 No model weights downloaded, no runtime installed, no model started, and no DSH/MCP production configuration changed.
+
+
+### G6.3 audit run 1 — prefix matcher correction
+
+The first read-only run verified all four shard headers but failed MoE key classification because the script expected `language_model.model.layers` while Qwen keys also use `model.language_model.layers`. The script now accepts both naming orders and emits real expert-key samples if classification still fails. The regex was synthetically checked; the remote header audit still needs a rerun before any memory-budget conclusion. No weight payloads were downloaded.
