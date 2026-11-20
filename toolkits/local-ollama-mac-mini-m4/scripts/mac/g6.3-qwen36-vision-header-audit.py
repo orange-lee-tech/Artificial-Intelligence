@@ -181,6 +181,10 @@ def main():
     vision_tensor_count = 0
     mtp_tensor_count = 0
     mtp_bytes = 0
+    vision_dtype_counts = defaultdict(int)
+    vision_component_counts = defaultdict(int)
+    vision_field_counts = defaultdict(int)
+    vision_samples = []
 
     for name, meta in all_tensors.items():
         offsets = meta.get("data_offsets")
@@ -233,6 +237,15 @@ def main():
             category_tensors["vision"] += 1
             vision_bytes += size
             vision_tensor_count += 1
+            dtype = meta.get("dtype", "UNKNOWN")
+            vision_dtype_counts[str(dtype)] += 1
+            vision_match = vision_re.search(name)
+            component = name[vision_match.start():].split(".", 1)[0]
+            vision_component_counts[component] += 1
+            leaf = name.rsplit(".", 1)[-1]
+            vision_field_counts[leaf] += 1
+            if len(vision_samples) < 12:
+                vision_samples.append((name, dtype, shape, size))
         elif "embed_tokens" in name or ".embeddings." in name:
             categories["embedding"] += size
             category_tensors["embedding"] += 1
@@ -337,6 +350,21 @@ def main():
             f"{category},{category_tensors[category]},{size},"
             f"{size / 1024**3:.6f}"
         )
+
+    print("")
+    print("=== VISION DTYPE / MODULE AUDIT ===")
+    print("dtype,tensors")
+    for dtype in sorted(vision_dtype_counts):
+        print(f"{dtype},{vision_dtype_counts[dtype]}")
+    print("vision_component,tensors")
+    for component in sorted(vision_component_counts):
+        print(f"{component},{vision_component_counts[component]}")
+    print("vision_leaf_field,tensors")
+    for field in sorted(vision_field_counts):
+        print(f"{field},{vision_field_counts[field]}")
+    print("vision_tensor_samples=name|dtype|shape|bytes")
+    for name, dtype, shape, size in vision_samples:
+        print(f"{name}|{dtype}|{shape}|{size}")
 
     print("")
     print("=== PER-LAYER TOP-K FLOOR ===")
