@@ -454,3 +454,18 @@ The user executed the pinned read-only audit script and returned its complete ou
 5. If and only if the no-cache run is stable, run a bounded resident-cache A/B. Then evaluate PACS text and image tasks before DSH API integration.
 
 **Current gate status:** exact checkpoint/header/quantization audit = PASS; runtime source compatibility review = PASS with local patch; G6.4 preflight script committed = READY / NOT RUN; Python 3.12 venv = NOT CREATED; full checkpoint download = NOT STARTED; actual 16GB VLM load and image round-trip = NOT TESTED; DSH local-model integration = NOT STARTED.
+
+
+### 10.10 Revision-pinned checkpoint acquisition (2026-11-20)
+
+A second script is committed: `scripts/mac/g6.4-download-pinned-qwen36.sh`.
+
+**Why this is separate from preflight**
+- The runtime's `prepare --model` accepts a local path or Hugging Face repository ID. Its repository-ID resolver calls `snapshot_download(repo_id)` without exposing a revision argument.
+- Passing the bare repository ID would therefore not enforce the exact audited revision. Do not use that shortcut for this project.
+- The new script requires the G6.4 preflight pass marker, sets `HF_HOME` and `HF_HUB_CACHE` on TS900, and calls `snapshot_download(repo_id=..., revision=38740b847e4cb78f352aba30aa41c76e08e6eb46, local_dir=...)` directly.
+- It verifies the exact model type, top-level layer/expert/top-k fields, VLM metadata, 80 8-bit gate overrides, index total size, four expected shard names and exact shard byte sizes before manifest generation.
+- It then passes the local checkpoint directory—not a remote repo ID—to `mlx-moe-stream prepare`, and validates the resulting manifest has 40 layers × 256 experts, Top-8, 10,240 bundles, and 1,769,472 bytes per expert bundle.
+- Downloads are resumable in a revision-marked directory on TS900. The script stops if the directory exists with no matching revision marker or if less than 30 GB is free.
+
+**Execution order:** first run `g6.4-runtime-preflight.sh`; only after it reports `RUNTIME_PREFLIGHT=PASS` run `g6.4-download-pinned-qwen36.sh`. The second script downloads the full approximately 20.4 GB tensor payload and prepares the manifest; it does not load the model or change production services.
