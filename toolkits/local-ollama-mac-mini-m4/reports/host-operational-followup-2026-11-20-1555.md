@@ -5,7 +5,7 @@
 **Capture:** user-provided read-only Terminal output  
 **Previous comparison sample:** 2026-11-18 18:30:13 CST  
 **Elapsed wall time:** 45 h 25 m 46 s  
-**Model/runtime residency:** not established by this memory-only capture; no process list or Ollama `/api/ps` was included.
+**Model/runtime residency:** established at 16:00:31 by the follow-up process capture: Ollama `/api/ps` returned an empty model list. This is a follow-up observation, not part of the 15:55 capture.
 
 ## 1. 2026-11-20 snapshot
 
@@ -68,10 +68,13 @@ The 51% system-wide free percentage is not a direct model-allocatable-memory mea
 - 2 GiB expert pool plan: remains a static design target only; not permission to load.
 - Provisional 5 GiB non-model reserve: **NOT VALIDATED**.
 - Cause of the increased pressure: **UNKNOWN — current process inventory required**.
-- Whether cumulative counter deltas span one boot: **NOT VERIFIED**.
+- Whether cumulative counter deltas span one boot: **VERIFIED** by the 16:00:31 uptime/boot-time follow-up.
 - Model download, runtime installation, model execution, service restart and production configuration change: **not performed by this evidence review**.
 
 ## 5. Next read-only diagnostic
 
 Before another memory trend sample, identify the current memory consumers and verify boot continuity. Capture `date`, `uptime`, `sysctl kern.boottime`, `memory_pressure`, `vm_stat`, the top resident processes, and Ollama's resident-model list. Do not terminate processes or change services as part of this diagnostic.
 
+
+
+Follow-up: [Host Process and Memory Audit — 2026-11-20 16:00](host-process-memory-audit-2026-11-20-1600.md) confirms same-boot continuity and an empty Ollama resident-model list.
