@@ -207,3 +207,29 @@ At 18:30, compressor occupancy was 4.405121 GiB, wired pages 2.275238 GiB and ra
 
 Full second-snapshot evidence: [Host Operational Follow-up](host-operational-followup-2026-11-18-1830.md).
 
+
+
+## 11. Host memory follow-up — 2026-11-20 15:55 CST
+
+The user supplied a third host snapshot, 45 h 25 m 46 s after the 2026-11-18 18:30 sample.
+
+| Metric | 2026-11-18 18:30 | 2026-11-20 15:55 | Change |
+|---|---:|---:|---:|
+| Swap used | 446.50 MB | 833.62 MB | +387.12 MB |
+| System-wide free percentage | 56% | 51% | -5 pp |
+| Free pages | 10,352 | 4,930 | -5,422 (-84.72 MiB) |
+| Wired pages | 149,110 | 127,588 | -21,522 (-336.28 MiB) |
+| Compressor pages | 288,694 | 362,081 | +73,387 (+1,146.67 MiB / +1.1198 GiB) |
+| Swapins | 46,423 | 53,910 | +7,487 pages (+116.98 MiB) |
+| Swapouts | 102,568 | 135,024 | +32,456 pages (+507.13 MiB) |
+| Pageouts | 70,520 | 163,357 | +92,837 pages (+1,450.58 MiB) |
+
+At 16 KiB/page, current compressor occupancy is approximately 5.5249 GiB, wired pages 1.9468 GiB and raw free pages 77.03 MiB. The same command sequence showed small differences between its `memory_pressure` and later `vm_stat` reads because these are live sequential samples.
+
+**Cumulative-counter qualification:** swapins, swapouts and pageouts are since-boot counters. Their deltas assume no reboot between the two captures; the supplied output did not include uptime or boot time, so continuity remains unverified. Pageouts are not equivalent to swapouts.
+
+**Interpretation:** the 2026-11-20 snapshot is materially less favorable than the 2026-11-18 snapshot. Swap used increased, system-wide free percentage fell five points, free pages fell, and compressor occupancy rose about 1.12 GiB. The cause and persistence of this change are unknown because the current process inventory and workload equivalence are not available. The free percentage is not a direct model-allocatable-memory measurement.
+
+**Admission:** Kimi model load / smoke test is **HOLD — NOT APPROVED**. The 2 GiB pool remains a static design target only. The provisional 5 GiB non-model reserve is not validated. Obtain uptime/boot time, current top resident processes and Ollama `/api/ps` before further model-admission work.
+
+Full evidence: [Host Operational Follow-up — 2026-11-20 15:55](host-operational-followup-2026-11-20-1555.md).
