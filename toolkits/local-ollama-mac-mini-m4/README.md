@@ -485,3 +485,16 @@ Each layer's Top-8 expert payload is 13.5 MiB; summed across 40 sequential layer
 **Stop expanding static audits.** The next gate is isolated runtime qualification, then measured peak memory/swap and PACS task quality. Start with the documented conservative VLM no-resident-expert-cache path; if it is safe but I/O-bound, test a bounded expert-cache A/B. Do not download full checkpoint weights until the shell/vision runtime path is verified.
 
 The previous user-provided `ollama /api/ps` result was empty at that earlier time, but installed model inventory is unknown. Run `ollama list` and `ollama ps` before removing anything. Removing a confirmed unloaded 4B tag prevents accidental selection and frees disk, not meaningful unified memory; it does not uninstall Ollama. Never use a wildcard removal.
+
+
+### 2026-11-20 — G6.4 runtime-first deployment preparation
+
+The selected first VLM runtime is `IDAH-BITBOX/serve-mlx` / `mlx-moe-stream`, pinned to commit `d7021c9d6e66afbcf013b6a1b87431236b2d08f9`. It has a Qwen3.5-MoE VLM path for `model_type=qwen3_5_moe`, streams routed experts from disk, and keeps the vision tower plus non-expert shell resident. It is pre-release software; upstream's documented end-to-end result is on 24GB M4 hardware, so the PACS 16GB Mac mini remains unvalidated.
+
+**Compatibility correction:** the pinned Qwen3.6 checkpoint stores its text dimensions at the top level, while the runtime's manifest builder previously required nested `text_config`. The committed `g6.4-runtime-preflight.sh` applies a narrow fallback and a synthetic regression test before installing anything.
+
+Run `scripts/mac/g6.4-runtime-preflight.sh` only after confirming TS900 is mounted. It creates an isolated Python 3.12 venv and runs the runtime's tests/import/CLI checks. It does not download model weights or change Ollama, DSH, or MCP production settings.
+
+The installed `qwen3.5:4b` tag is confirmed present but not loaded. Remove only that exact tag with `ollama rm qwen3.5:4b` if retiring it; this prevents accidental selection and frees disk, not unified memory.
+
+After preflight PASS, and not before, download the pinned Qwen3.6 checkpoint to TS900 and build its manifest. The first actual load must use one request at a time, native VLM, no resident expert cache, a 2 GiB scratch reserve, short context, no MTP/draft, no fan-out, and no wired-memory limit. Only measured stable results can authorize a bounded expert-cache A/B and later DSH integration.
