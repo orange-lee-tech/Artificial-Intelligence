@@ -385,3 +385,11 @@ No model weights downloaded, no runtime installed, no model started, and no DSH/
 ### G6.3 audit run 1 — prefix matcher correction
 
 The first read-only run verified all four shard headers (about 19.0008 GiB serialized tensor payload, not a RAM estimate) but failed MoE key classification because the script expected `language_model.model.layers` while Qwen keys also use `model.language_model.layers`. The script now accepts both naming orders and emits real expert-key samples if classification still fails. The regex was synthetically checked; the remote header audit still needs a rerun before any memory-budget conclusion. No weight payloads were downloaded.
+
+
+### G6.3 Qwen3.6 expert-layout correction
+
+The pinned 4-bit MLX checkpoint does **not** use per-expert `*.mlp.experts.N.*` keys. It stores routed experts as stacked tensors:
+`language_model.model.layers.N.mlp.switch_mlp.{gate_proj,up_proj,down_proj}.{weight,scales,biases}`.
+The audit now validates the leading dimension equals 256, accounts all three projections and affine metadata per layer, and reports MTP tensors separately. The second audit run exposed this key-family mismatch; it did not show missing MoE weights. Corrected script is committed, but still needs a Mac mini rerun before any cache/memory calculations are accepted.
+
