@@ -180,6 +180,7 @@ def main():
     expert_tensor_count = 0
     vision_tensor_count = 0
     mtp_tensor_count = 0
+    mtp_bytes = 0
 
     for name, meta in all_tensors.items():
         offsets = meta.get("data_offsets")
@@ -212,17 +213,22 @@ def main():
             expert_tensor_count += 1
             continue
 
-        if ".mlp.switch_mlp." in name:
+        if ".mlp.switch_mlp." in name and ".mtp." not in name:
             raise RuntimeError(
                 f"unclassified switch_mlp tensor key; refusing to undercount: {name}"
             )
-        if ".mlp.experts." in name and ".mtp.layers." not in name:
+        if ".mlp.experts." in name and ".mtp." not in name:
             raise RuntimeError(
                 f"unexpected non-stacked backbone expert key; refusing to undercount: {name}"
             )
 
         non_expert_bytes += size
-        if vision_re.search(name):
+        if ".mtp." in name or name.startswith("mtp."):
+            categories["mtp_optional"] += size
+            category_tensors["mtp_optional"] += 1
+            mtp_tensor_count += 1
+            mtp_bytes += size
+        elif vision_re.search(name):
             categories["vision"] += size
             category_tensors["vision"] += 1
             vision_bytes += size
@@ -249,8 +255,6 @@ def main():
             categories["other_non_expert"] += size
             category_tensors["other_non_expert"] += 1
 
-        if "mtp." in name or name.startswith("mtp."):
-            mtp_tensor_count += 1
 
     expected_layers = list(range(EXPECTED_LAYERS))
     actual_layers = sorted(layer_bytes)
@@ -314,6 +318,8 @@ def main():
     print(f"vision_tensor_bytes={vision_bytes}")
     print(f"non_vision_shell_bytes={non_vision_shell}")
     print(f"mtp_tensor_count={mtp_tensor_count}")
+    print(f"mtp_tensor_bytes={mtp_bytes}")
+    print(f"mtp_GiB={mtp_bytes / 1024**3:.6f}")
     print(f"routed_expert_bytes_per_selected_token_topk{top_k}={topk_floor}")
     print(f"total_GiB={tensor_bytes_total / 1024**3:.6f}")
     print(f"expert_GiB={expert_bytes / 1024**3:.6f}")
