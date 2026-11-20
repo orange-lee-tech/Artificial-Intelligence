@@ -167,6 +167,9 @@ def main():
     expert_re = re.compile(
         r"^(?:model\.)?language_model(?:\.model)?\.layers\.(\d+)\.mlp\.switch_mlp\.(gate_proj|up_proj|down_proj)\.(weight|scales|biases)$"
     )
+    gate_re = re.compile(
+        r"^(?:model\.)?language_model(?:\.model)?\.layers\.(\d+)\.mlp\.(gate|shared_expert_gate)\.(weight|scales|biases)$"
+    )
     vision_re = re.compile(r"(?:^|\.)(?:vision_tower|visual)(?:\.|$)", re.IGNORECASE)
     layer_bytes = defaultdict(int)
     layer_tensor_count = defaultdict(int)
