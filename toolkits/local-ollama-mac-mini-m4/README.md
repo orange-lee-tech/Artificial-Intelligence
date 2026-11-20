@@ -450,3 +450,12 @@ The G6.3 header audit script now also reports vision tensor dtypes and module fi
 ### G6.3 header audit extension
 
 The pinned read-only audit now checks all 40 layers' router and shared-expert gates in the Safetensors headers: 80 module paths, each with `weight`, `scales`, and `biases` (240 tensor entries expected). It accepts both raw checkpoint and sanitized MLX path prefixes. It also reports the vision tower's dtype and tensor-field distribution plus bounded name/shape samples. No tensor payloads are read. Run the committed script before runtime qualification.
+
+
+### 2026-11-20 — Mac mini environment readiness snapshot
+
+User-reported TS900 state: mounted at `/Volumes/SSD`, 954 GiB total, 4.7 GiB used, 949 GiB available. This is a capacity/mount check, not a new throughput benchmark.
+
+The active interpreter is native ARM64 CPython 3.14.5. The checked MLX/runtime package set is completely absent, so the environment is clean. Xcode Command Line Tools are selected at `/Library/Developer/CommandLineTools`.
+
+**Python decision:** MLX 0.32.4 has CPython 3.14 macOS ARM64 wheels, so 3.14 is not an MLX-only blocker. However, the current declared classifiers for mlx-lm 0.32.2 stop at 3.13, mlx-vlm 0.8.0 stop at 3.12, and serve-mlx 0.1.0a7 stop at 3.13. Use a separate CPython 3.12 venv for the first conservative full-stack qualification; do not alter the existing 3.14 installation. No package installation or model download is authorized yet.
