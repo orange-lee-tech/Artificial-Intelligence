@@ -175,6 +175,7 @@ def main():
     layer_tensor_count = defaultdict(int)
     layer_projection_fields = defaultdict(lambda: defaultdict(set))
     gate_fields_by_layer_module = defaultdict(set)
+    gate_tensor_count = 0
     gate_tensor_samples = []
     categories = defaultdict(int)
     category_tensors = defaultdict(int)
@@ -228,6 +229,7 @@ def main():
             module = gate_match.group(2)
             field = gate_match.group(3)
             gate_fields_by_layer_module[(layer, module)].add(field)
+            gate_tensor_count += 1
             if len(gate_tensor_samples) < 12:
                 gate_tensor_samples.append((name, meta.get("dtype", "UNKNOWN"), shape, size))
 
@@ -329,6 +331,12 @@ def main():
                 f"layer {layer} {module} quantization fields mismatch: "
                 f"expected {sorted(expected_fields)}, found {sorted(actual_fields)}"
             )
+    expected_gate_tensor_count = len(expected_gate_modules) * len(expected_fields)
+    if gate_tensor_count != expected_gate_tensor_count:
+        raise RuntimeError(
+            f"router/shared-gate tensor count mismatch: expected "
+            f"{expected_gate_tensor_count}, found {gate_tensor_count}"
+        )
 
     if vision_tensor_count == 0 or vision_bytes == 0:
         raise RuntimeError(
@@ -368,7 +376,7 @@ def main():
     print(f"mtp_tensor_bytes={mtp_bytes}")
     print(f"mtp_GiB={mtp_bytes / 1024**3:.6f}")
     print(f"router_and_shared_gate_module_count={len(actual_gate_modules)}")
-    print(f"router_and_shared_gate_tensor_count={sum(len(v) for v in gate_fields_by_layer_module.values())}")
+    print(f"router_and_shared_gate_tensor_count={gate_tensor_count}")
     print(f"routed_expert_bytes_per_selected_token_topk{top_k}={topk_floor}")
     print(f"total_GiB={tensor_bytes_total / 1024**3:.6f}")
     print(f"expert_GiB={expert_bytes / 1024**3:.6f}")
