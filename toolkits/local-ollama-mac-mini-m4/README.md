@@ -415,8 +415,15 @@ This is an exact metadata/header accounting PASS, **not** a 16 GiB runtime-memor
 
 Inspected `IDAH-BITBOX/serve-mlx` main at `d7021c9d6e66afbcf013b6a1b87431236b2d08f9` (0.1.0a7). Its Qwen3.5-MoE storage layout matches the audited Qwen3.6 stacked `switch_mlp` keys, and its VLM loader has a Qwen3.6/Qwen3.5-MoE vision path with OpenAI-compatible tool/image endpoints. However, README hardware validation is Qwen3.6 8-bit on 24 GiB, not the pinned 4-bit checkpoint on this 16 GiB Mac mini. Vision mode defaults to no resident expert cache, at least 2 GiB scratch, and 256-token prefill.
 
-**Potential blocker to verify before manifest preparation:** PACS's audit accepts `text_config` at the top level or inside `quantization`; serve-mlx's current manifest builder reads only top-level `text_config`. Confirm the pinned config's exact key location. No runtime installation, checkpoint download, model load or production DSH/MCP change is authorized. Full source review and gates: [PACS single-model + DSH integration review](reports/pacs-single-model-dsh-integration-review-2026-11-20.md).
+**Config-schema gate closed:** the Mac mini read-only check confirmed `text_config` is top-level (40 layers, 256 experts, top-8), matching serve-mlx's manifest builder; no compatibility patch is required. The config also has 80 per-layer quantization entries for `mlp.gate` and `mlp.shared_expert_gate`; serve-mlx's source-level quantization predicate supports full `language_model.*` paths. Actual VLM quantization and 4-bit model execution remain untested. No runtime installation, checkpoint download, model load or production DSH/MCP change is authorized. Full source review and gates: [PACS single-model + DSH integration review](reports/pacs-single-model-dsh-integration-review-2026-11-20.md).
 
 
 
 **Runtime accounting clarification:** the 540 MiB Top-8 value is cumulative all-cold expert read volume across a token, not necessarily simultaneous resident memory. serve-mlx's VLM-safe default uses no resident expert cache and materializes one routed expert bundle at a time; its cached mode uses a global byte-budgeted LRU. The streamlx slot-pool floor must not be applied automatically to serve-mlx. A no-cache VLM correctness baseline is the lowest-risk first runtime profile; cache A/B comes only after measured headroom.
+
+
+### 2026-11-20 — Qwen3.6 config-schema gate closed
+
+The Mac mini read-only check against the pinned revision confirmed `model_type=qwen3_5_moe`, top-level `text_config` (40 layers, 256 experts, top-8), no `quantization.text_config`, and 4-bit/group-64 quantization. This matches serve-mlx's manifest builder exactly; **no config compatibility patch is needed**.
+
+The checkpoint has 80 explicit per-layer quantization map keys (each layer's `mlp.gate` and `mlp.shared_expert_gate`). serve-mlx's `_quantize_shell()` supports full `language_model.*` module paths at source level. This does not yet prove runtime module-path/quantization success. Exact 4-bit VLM load, 16 GiB memory admission, and DSH protocol remain untested. No weights downloaded or runtime installed.
