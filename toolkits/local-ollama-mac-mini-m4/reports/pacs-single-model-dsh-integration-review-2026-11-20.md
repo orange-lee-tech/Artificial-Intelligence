@@ -226,12 +226,12 @@ Important runtime defaults for vision mode:
 - On a 16 GiB host, automatic memory safety margin is documented as 4 GiB. These defaults are more conservative than a 3 GiB resident expert cache.
 
 Open qualification gates:
-1. **Config schema:** PACS's header script explicitly accepts either top-level `text_config` or `quantization.text_config`. The inspected serve-mlx manifest builder currently reads only top-level `source_config["text_config"]` for `qwen3_5_moe`. Confirm the exact pinned config's actual key location before running `prepare`; if it is nested only under `quantization`, the current manifest builder will reject it and requires a narrowly scoped compatibility fix. This is a source-level concern, not yet a confirmed failure.
+1. **Config schema: CLOSED — PASS.** The Mac mini read-only config check at the pinned revision returned `model_type=qwen3_5_moe`, `text_config_source=top_level`, `top_level_text_config=True`, and `quantization_text_config=False`; the top-level text config contains 40 layers, 256 experts, and top-8 routing. This exactly matches serve-mlx's `_text_config()` path for `qwen3_5_moe`; no config-schema patch is required. The same check returned 4-bit/group-64 quantization and 80 explicit per-layer quantization keys (for each of 40 layers: `mlp.gate` and `mlp.shared_expert_gate`). The inspected `_quantize_shell()` looks up full module paths in the quantization map and strips a leading `language_model.` as a fallback, so these path forms are supported at source level. The actual VLM `nn.quantize()` execution and resulting module tree have not yet been runtime-tested. This is a source-level concern, not yet a confirmed failure.
 2. **Exact 4-bit VLM:** no end-to-end test of this pinned 4-bit checkpoint and vision path was found in the inspected test tree. Existing tests exercise small synthetic text-family adapters; README validation is 8-bit Qwen3.6 on 24 GiB.
 3. **Host memory:** runtime-reported shell bytes, startup peak, allocator/scratch peak, and real 4K/8K VLM memory have not been measured on this Mac mini.
 4. **DSH protocol:** actual DSH tool-call, streaming, image and unload/reload round trips remain untested.
 
-Current disposition: serve-mlx is the strongest source-level runtime candidate for this VLM, but exact checkpoint qualification is **PARTIAL**. Do not install it, download weights, run `prepare` against a remote model ID, or change DSH/MCP production settings until the config-schema check and memory admission gates are resolved.
+Current disposition: serve-mlx is the strongest source-level runtime candidate for this VLM, but exact checkpoint qualification is **PARTIAL**. The config-schema gate is closed; exact 4-bit VLM execution, host-memory admission, and DSH protocol remain open. Do not install it, download weights, run `prepare` against a remote model ID, or change DSH/MCP production settings until those remaining gates are explicitly authorized and resolved.
 
 
 ### 10.1 Runtime memory semantics relevant to the cache table
@@ -243,3 +243,21 @@ The inspected `serve-mlx` runtime has two distinct modes:
 Therefore the 0.527344 GiB Top-8 figure is the cumulative full-miss bytes across all 40 layers for one token. It is **not** a mandatory simultaneous resident-memory floor for `serve-mlx` no-cache mode. A single bundle is 1.6875 MiB; the actual peak also depends on execution temporaries and overlap. The earlier streamlx per-layer pool-floor rule remains specific to that runtime's slot-pool design and must not be blindly applied to serve-mlx.
 
 For the VLM path, serve-mlx defaults to `resident-budget off`, at least 2 GiB VLM scratch reserve, and 256-token prefill. This makes a no-cache correctness baseline the lowest-risk first runtime profile; resident-cache A/B should follow only if the measured memory budget permits.
+
+
+### 10.2 Pinned config-schema confirmation — PASS (Mac mini, 2026-11-20)
+
+The user ran the read-only config check against the same pinned revision and returned:
+
+- `model_type=qwen3_5_moe`
+- `text_config_source=top_level`; `top_level_text_config=True`
+- `quantization_text_config=False`
+- `num_hidden_layers=40`, `num_experts=256`, `num_experts_per_tok=8`
+- `quantization_bits=4`, `quantization_group_size=64`
+- `quantization_keys` contains 80 explicit per-layer module entries: `language_model.model.layers.N.mlp.gate` and `language_model.model.layers.N.mlp.shared_expert_gate` for N=0..39, plus global bits/group_size/mode.
+
+This closes the earlier manifest-schema concern: serve-mlx's `_text_config()` reads top-level `text_config` for `qwen3_5_moe`, which is exactly where this checkpoint places it. No config compatibility patch is required.
+
+The inspected `_quantize_shell()` uses the checkpoint's `quantization` object, looks up the full module path, and has a fallback that strips the leading `language_model.`. Thus the returned per-layer key naming is supported by the source-level lookup contract. This is **not** proof that the pinned VLM's instantiated module paths and MLX-VLM quantization behavior succeed at runtime; that remains a runtime qualification gate.
+
+No weights were downloaded; no package was installed; no model or service was started; no DSH/MCP production setting was changed.
