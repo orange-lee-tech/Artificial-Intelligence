@@ -341,3 +341,52 @@ Python compatibility assessment from current upstream package metadata (checked 
 **Conservative runtime choice:** use a dedicated CPython 3.12 environment for the first exact-stack qualification, because 3.12 is the common declared classifier intersection. Keep the existing Homebrew 3.14 installation untouched. Homebrew provides a separate `python@3.12` formula for Apple Silicon. Before installing anything, perform a read-only check for an existing 3.12 interpreter and collect the missing host memory baseline plus the extended G6.3 header-audit output.
 
 **Gate state:** TS900 mount/free-capacity = PASS; clean Python package baseline = PASS; Command Line Tools path = PRESENT; Python 3.14 full-stack declared support = NOT ESTABLISHED; Python 3.12 interpreter presence = NOT CHECKED. The user-provided excerpt does not include the G6.3 extended header-audit output or the memory-pressure/Swap baseline, so those remain pending. No runtime installed, no model downloaded or loaded, and no production configuration changed.
+
+
+### 10.7 Exact Qwen3.6 Safetensors header accounting + host snapshot — PASS (Mac mini, 2026-11-20)
+
+The user executed the pinned read-only audit script and returned its complete output.
+
+**Checkpoint identity**
+- Repository: `mlx-community/Qwen3.6-35B-A3B-4bit`
+- Immutable revision: `38740b847e4cb78f352aba30aa41c76e08e6eb46`
+- Architecture: `Qwen3_5MoeForConditionalGeneration`
+- `model_type=qwen3_5_moe`
+- 40 MoE layers, 256 experts/layer, top-8
+- Global quantization: 4-bit, group size 64, affine
+- Vision config: depth 27, hidden size 1152
+- Four Safetensors shards; 2,090 tensors total
+- Index size: 215,755 bytes; metadata tensor payload sum: 20,401,929,952 bytes (19.000778 GiB)
+- Only 274,319 bytes of Safetensors headers were fetched. No tensor payload bytes were downloaded.
+
+**Exact tensor accounting**
+- Routed expert tensors: 360; total 18,119,393,280 bytes (16.875 GiB).
+- Every layer has nine expert tensor entries per expert bundle; each bundle is exactly 1,769,472 bytes.
+- Every layer's top-8 bundle floor is exactly 14,155,776 bytes.
+- Across all 40 layers, cumulative top-8 expert read volume per generated token is 566,231,040 bytes (0.527344 GiB). This is cumulative traffic across sequential layers, not a claim that all these bytes must be resident simultaneously. It is also the summed per-layer slot floor for a streamlx-style pool that retains top-8 slots for every layer; do not apply this pool model to serve-mlx's no-resident-cache path.
+- Non-expert tensors: 2,282,536,672 bytes (2.125778 GiB), including vision.
+- Vision: 333 tensors, all BF16, 893,142,496 bytes (0.831804 GiB).
+- Non-vision shell: 1,389,394,176 bytes (1.293974 GiB).
+- MTP tensors: zero.
+- Router/shared-gate audit: 80 modules and 240 tensors.
+- All four shard headers parsed; exact index-to-header key coverage and tensor byte sum passed.
+
+**Interpretation:** the checkpoint's complete tensor payload is 19.000778 GiB, larger than 16 GiB unified memory. This confirms that full resident loading is not a viable plan. It does not disqualify an out-of-core expert-streaming design: the non-expert payload is 2.125778 GiB and experts total 16.875 GiB. The 0.527344 GiB all-layer top-8 cumulative expert traffic is not a full memory budget and cannot be added as if it were simultaneously resident for the serve-mlx no-cache mode.
+
+**Memory admission remains OPEN.** Runtime overhead, instantiated shell/vision allocations, at-least-2-GiB vision scratch, KV/recurrent state, image prefill temporaries, allocator peaks, OS headroom and safety margin remain to be measured or conservatively bounded. Do not infer that the model fits from the header totals alone.
+
+**Host snapshot returned by user**
+- macOS 26.2 build 25C56; Mac16,10; physical memory 17,179,869,184 bytes (16 GiB).
+- `memory_pressure`: system-wide memory free percentage 59%.
+- Swap: 2,048 MiB total; 761.62 MiB used; 1,286.38 MiB free.
+- Thermal/performance warning level: none recorded.
+- The `vm_stat` Swapins/Swapouts/Pageouts are cumulative counters; this single snapshot supplies no interval delta and cannot establish active swap churn.
+- This is one host snapshot, not a controlled sustained-load test or runtime memory measurement.
+
+**Python environment update**
+- CPython 3.12 is not installed at `/opt/homebrew/bin/python3.12`.
+- Homebrew CPython 3.13.13 is installed at `/opt/homebrew/opt/python@3.13/bin/python3.13`, native arm64.
+- Previous package inventory found no MLX/runtime packages installed.
+- Keep 3.14 and 3.13 untouched. The conservative common declared-classifier choice remains a separate Python 3.12 environment; it has not yet been installed.
+
+**Gate status:** exact Safetensors index/header coverage = PASS; exact expert and non-expert byte accounting = PASS; Vision dtype/layout accounting = PASS; host one-point snapshot = RECORDED; Python 3.12 interpreter = NOT INSTALLED; 16-GiB runtime memory admission = NOT TESTED; actual VLM load/generation and DSH image/tool round trip = NOT TESTED. No model weights downloaded, no MLX runtime installed, and no production Ollama/DSH/MCP configuration changed.
