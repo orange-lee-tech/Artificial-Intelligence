@@ -357,7 +357,7 @@ Evidence: [Host Process and Memory Audit](reports/host-process-memory-audit-2026
 
 **Proposed first qualification candidate: Qwen3.6-35B-A3B 4-bit MLX VLM.** This is a candidate priority, not a deployment approval.
 
-Reason: the intended primary model should cover reasoning, coding, tool calls and image understanding. DSH supplies browser/desktop/file/terminal tools, but its CUA screenshot route still requires an image-capable model. A text-only model does not gain image semantics from the tool scaffold; without an image-capable route, CUA can reject the screenshot request with `MODEL_DOES_NOT_SUPPORT_IMAGES`. Accessibility Tree, browser DOM and OCR remain usable as structured text.
+Reason: the intended primary model should cover reasoning, coding, tool calls and image understanding. DSH supplies browser/desktop/file/terminal tools, but screenshot semantics still require an image-capable endpoint. Without an explicit `screenshotTarget`, CUA prechecks the Agent route and may reject a text-only model with `MODEL_DOES_NOT_SUPPORT_IMAGES`; a configured `screenshotTarget` can bypass that capture precheck but does not give the text model vision or route the image elsewhere. Accessibility Tree, browser DOM and OCR remain usable as structured text.
 
 Pinned source-audit target:
 `mlx-community/Qwen3.6-35B-A3B-4bit@38740b847e4cb78f352aba30aa41c76e08e6eb46`.
@@ -377,6 +377,6 @@ New read-only audit script:
 [`g6.3-qwen36-vision-header-audit.py`](scripts/mac/g6.3-qwen36-vision-header-audit.py). It pins the exact MLX 4-bit revision and reads only config/index plus verified HTTP Range Safetensors headers. It does not download tensor payloads.
 
 Full design and next qualification sequence:
-[ P A C S single-model + DSH integration review ](reports/pacs-single-model-dsh-integration-review-2026-11-20.md).
+[PACS single-model + DSH integration review](reports/pacs-single-model-dsh-integration-review-2026-11-20.md).
 
 No model weights downloaded, no runtime installed, no model started, and no DSH/MCP production configuration changed.
