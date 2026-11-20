@@ -423,3 +423,34 @@ The user executed the pinned read-only audit script and returned its complete ou
 - A fresh `ollama list` and `ollama ps` are required to identify the exact installed tag and current resident state before removal.
 - Removing an unloaded 4B model frees disk space and prevents accidental selection, but does not materially increase unified memory. It does not uninstall the Ollama application/service.
 - Do not run a wildcard or remove all Ollama models. Remove only the verified 4B tag if the user chooses to retire it.
+
+
+### 10.9 G6.4 runtime selection and exact Qwen3.6 config compatibility (2026-11-20)
+
+**Runtime selected for the first VLM qualification**
+- Repository: `IDAH-BITBOX/serve-mlx` (package `mlx-moe-stream`), Apache-2.0, pre-release `0.1.0a7`.
+- Pinned source commit: `d7021c9d6e66afbcf013b6a1b87431236b2d08f9` (main had no newer commit at inspection).
+- Its Qwen3.5-MoE VLM adapter supports `model_type=qwen3_5_moe`, loads non-expert language/vision weights into Unified Memory, and leaves routed `switch_mlp` experts on disk. It exposes image chat and a serial, one-generation-at-a-time local server.
+- The README's 16GB VLM starting profile uses `--vision`, no resident expert cache, automatic safety margin, at least 2 GiB scratch, quantized KV cache, and 256-token prefill chunks. Upstream end-to-end results cited in the README are on an M4 MacBook Pro with 24GB, not PACS's 16GB Mac mini. The 16GB profile is a starting policy, not proof of memory admission.
+- streamlx remains a possible later performance comparison, but its Qwen3.6 example is text-only through mlx-lm; it is not the first choice for the requirement to retain native image chat.
+
+**Exact compatibility issue found before installation**
+- The pinned Qwen3.6 checkpoint audit reports `model_type=qwen3_5_moe` and places `num_hidden_layers`, `num_experts`, and `num_experts_per_tok` at the top level (no nested `text_config` object).
+- The selected runtime's `storage/safetensors_store.py::_text_config()` previously required a nested `text_config` object for `qwen3_5_moe`. Without a compatibility adjustment, `mlx-moe-stream prepare` would fail before creating a manifest.
+- The checkpoint's expert keys do match the runtime's Qwen3.5 leading-axis pattern: `language_model.model.layers.N.mlp.switch_mlp.{gate_proj,up_proj,down_proj}.{weight,scales,biases}`.
+- A narrowly scoped local patch now permits top-level text fields only for `qwen3_5_moe` when all three required structural fields are present. A synthetic manifest regression test is added. The 80 per-layer 8-bit router/shared-gate overrides remain present in the checkpoint config and are consumed by the runtime's shell quantization predicate; actual 4-bit checkpoint shell loading still needs the real-model test.
+
+**Committed preflight**
+- Script: `scripts/mac/g6.4-runtime-preflight.sh`.
+- It creates an isolated Python 3.12 venv on TS900, checks out the pinned runtime commit, applies the top-level-config patch, installs pinned MLX / mlx-lm / mlx-vlm versions, runs Ruff and the upstream test suite, and checks imports/CLI.
+- It does not download Qwen checkpoint weights and does not modify Ollama, DSH Desktop Profile, MCP, credentials, or production configuration.
+- Runtime preflight has not yet been executed on the Mac mini. Upstream tests are synthetic/unit and do not substitute for the actual 40-layer VLM load or image-generation test.
+
+**Next deployment gates**
+1. Remove the now-confirmed, unloaded `qwen3.5:4b` tag only: `ollama rm qwen3.5:4b`. User has not yet reported this command completed. This frees disk and prevents accidental selection; it does not release model RAM because `ollama ps` is empty.
+2. Run the committed G6.4 preflight script. Stop on any failed install, test, or import check.
+3. Only after preflight PASS, set the Hugging Face cache root to TS900 and run `mlx-moe-stream prepare` against the pinned Qwen3.6 repo/revision. `prepare` resolves a Hugging Face repo with `snapshot_download` and downloads the checkpoint shards; this is the full-weight download gate, not a header-only operation.
+4. First real model launch: one manifest, one request, `--vision`, resident expert cache off, 2 GiB scratch reserve, short prompt/context and small output, no MTP/draft, no fan-out, no wired-memory limit. Record system memory pressure, Swap delta, MLX active/peak memory, load success and first-token latency.
+5. If and only if the no-cache run is stable, run a bounded resident-cache A/B. Then evaluate PACS text and image tasks before DSH API integration.
+
+**Current gate status:** exact checkpoint/header/quantization audit = PASS; runtime source compatibility review = PASS with local patch; G6.4 preflight script committed = READY / NOT RUN; Python 3.12 venv = NOT CREATED; full checkpoint download = NOT STARTED; actual 16GB VLM load and image round-trip = NOT TESTED; DSH local-model integration = NOT STARTED.
