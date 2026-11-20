@@ -261,3 +261,20 @@ This closes the earlier manifest-schema concern: serve-mlx's `_text_config()` re
 The inspected `_quantize_shell()` uses the checkpoint's `quantization` object, looks up the full module path, and has a fallback that strips the leading `language_model.`. Thus the returned per-layer key naming is supported by the source-level lookup contract. This is **not** proof that the pinned VLM's instantiated module paths and MLX-VLM quantization behavior succeed at runtime; that remains a runtime qualification gate.
 
 No weights were downloaded; no package was installed; no model or service was started; no DSH/MCP production setting was changed.
+
+
+### 10.3 Per-layer quantization-rule coverage — PASS; value distribution partially observed (Mac mini, 2026-11-20)
+
+The user ran the standalone read-only audit against the pinned config and returned:
+
+- `per_layer_rule_count=80`
+- `expected_rule_count=80`
+- `missing_rule_count=0`
+- Global quantization: `bits=4`, `group_size=64`, `mode=affine`
+- Four printed boundary entries (layer 0 and layer 39, `mlp.gate` and `mlp.shared_expert_gate`) each return `{group_size:64,bits:8}`.
+
+This proves exact key coverage for the expected 80 entries and confirms the printed boundary values. **The audit did not print or aggregate all 80 values**, so do not yet claim that every per-layer entry has the same 8-bit/group-64 value; a compact value-distribution check remains before runtime qualification.
+
+Source inspection at serve-mlx commit `d7021c9d6e66afbcf013b6a1b87431236b2d08f9` confirms the VLM path calls `_quantize_shell(model, mlx_nn, source_config, weights)` after VLM weight sanitization and before strict weight loading. `_quantize_shell()` reads global bits/group_size/mode, checks full module paths in the per-layer quantization map (with a fallback stripping the leading `language_model.`), and returns each matching per-layer dict to `mlx.nn.quantize`'s `class_predicate`. This is a source-level compatibility match for the returned key format, not an executed proof that all actual MLX-VLM module paths match at runtime.
+
+No package was installed, no weights downloaded, no model loaded, and no DSH/MCP production setting changed.
