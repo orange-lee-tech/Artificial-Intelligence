@@ -171,6 +171,8 @@ def main():
     layer_bytes = defaultdict(int)
     layer_tensor_count = defaultdict(int)
     layer_projection_fields = defaultdict(lambda: defaultdict(set))
+    gate_fields_by_layer_module = defaultdict(set)
+    gate_tensor_samples = []
     categories = defaultdict(int)
     category_tensors = defaultdict(int)
     expert_bytes = 0
@@ -216,6 +218,15 @@ def main():
             layer_projection_fields[layer][projection].add(field)
             expert_tensor_count += 1
             continue
+
+        gate_match = gate_re.match(name)
+        if gate_match:
+            layer = int(gate_match.group(1))
+            module = gate_match.group(2)
+            field = gate_match.group(3)
+            gate_fields_by_layer_module[(layer, module)].add(field)
+            if len(gate_tensor_samples) < 12:
+                gate_tensor_samples.append((name, meta.get("dtype", "UNKNOWN"), shape, size))
 
         if ".mlp.switch_mlp." in name and ".mtp." not in name:
             raise RuntimeError(
@@ -296,6 +307,26 @@ def main():
                     f"expected {sorted(expected_fields)}, found {sorted(actual_fields)}"
                 )
 
+    expected_gate_modules = {
+        (layer, module)
+        for layer in expected_layers
+        for module in ("gate", "shared_expert_gate")
+    }
+    actual_gate_modules = set(gate_fields_by_layer_module)
+    if actual_gate_modules != expected_gate_modules:
+        missing = sorted(expected_gate_modules - actual_gate_modules)[:12]
+        extra = sorted(actual_gate_modules - expected_gate_modules)[:12]
+        raise RuntimeError(
+            f"router/shared-gate module coverage mismatch; missing={missing}, extra={extra}"
+        )
+    for layer, module in sorted(expected_gate_modules):
+        actual_fields = gate_fields_by_layer_module[(layer, module)]
+        if actual_fields != expected_fields:
+            raise RuntimeError(
+                f"layer {layer} {module} quantization fields mismatch: "
+                f"expected {sorted(expected_fields)}, found {sorted(actual_fields)}"
+            )
+
     if vision_tensor_count == 0 or vision_bytes == 0:
         raise RuntimeError(
             "no vision tensors found in Safetensors index/header; config alone is not a VLM pass"
@@ -333,6 +364,8 @@ def main():
     print(f"mtp_tensor_count={mtp_tensor_count}")
     print(f"mtp_tensor_bytes={mtp_bytes}")
     print(f"mtp_GiB={mtp_bytes / 1024**3:.6f}")
+    print(f"router_and_shared_gate_module_count={len(actual_gate_modules)}")
+    print(f"router_and_shared_gate_tensor_count={sum(len(v) for v in gate_fields_by_layer_module.values())}")
     print(f"routed_expert_bytes_per_selected_token_topk{top_k}={topk_floor}")
     print(f"total_GiB={tensor_bytes_total / 1024**3:.6f}")
     print(f"expert_GiB={expert_bytes / 1024**3:.6f}")
@@ -350,6 +383,12 @@ def main():
             f"{category},{category_tensors[category]},{size},"
             f"{size / 1024**3:.6f}"
         )
+
+    print("")
+    print("=== ROUTER / SHARED-GATE TENSOR AUDIT ===")
+    print("tensor_samples=name|dtype|shape|bytes")
+    for name, dtype, shape, size in gate_tensor_samples:
+        print(f"{name}|{dtype}|{shape}|{size}")
 
     print("")
     print("=== VISION DTYPE / MODULE AUDIT ===")
