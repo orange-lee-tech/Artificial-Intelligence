@@ -106,3 +106,27 @@ Patch applied to `g6.3-qwen36-vision-header-audit.py`:
 - if classification still fails, print up to 20 actual `.mlp.experts.` tensor keys to make the next diagnosis evidence-based.
 
 A synthetic regex check passed for all supported prefixes and excluded `mtp.layers.0`. This is a code-level check only; the patched audit has **not yet been rerun against the remote Safetensors headers**. The audit remains incomplete until the user reruns it and it passes exact index/header accounting, all expected MoE layers, vision tensor classification and byte totals.
+
+
+## 8. G6.3 header audit: actual MLX expert layout identified — 2026-11-20
+
+The first audit failed because the classifier expected raw per-expert keys under `*.mlp.experts.N.*`. The second run still failed after a prefix-only regex adjustment; its diagnostic sample was empty. That was not evidence of missing experts. It showed the key-family assumption was wrong.
+
+The pinned MLX checkpoint uses stacked expert projections under:
+- `language_model.model.layers.N.mlp.switch_mlp.gate_proj.{weight,scales,biases}`
+- `language_model.model.layers.N.mlp.switch_mlp.up_proj.{weight,scales,biases}`
+- `language_model.model.layers.N.mlp.switch_mlp.down_proj.{weight,scales,biases}`
+
+This is consistent with the pinned checkpoint's published index excerpt and mlx-lm's Qwen3.5/3.6 sanitize tests: Qwen3.6 fused expert tensors are normalized into the stacked `switch_mlp` representation. The leading dimension is the expert axis; the audit must validate it equals 256 before dividing tensor bytes by 256.
+
+Updated script:
+`scripts/mac/g6.3-qwen36-vision-header-audit.py`
+- recognizes the three `switch_mlp` projections and `weight/scales/biases` fields;
+- requires all 40 configured layers, all three projections and all three affine quantization fields per projection;
+- verifies each tensor's leading dimension is 256 and byte count is divisible by 256;
+- treats MTP tensors separately as optional bytes rather than routed backbone experts;
+- fails closed on unknown `switch_mlp` or unexpected non-stacked backbone expert keys.
+
+Code-level regex samples passed for the pinned index prefix and alternate MLX prefix; MTP names are not captured as backbone experts. This is not yet a successful remote header audit. The corrected script must be rerun on the Mac mini; no memory envelope is valid until it passes exact index/header coverage, shape validation, all-layer/projection checks, and total byte reconciliation.
+
+The model config also declares `mtp_num_hidden_layers=1`; this alone does not prove MTP tensors are present. The next audit prints actual MTP tensor count and bytes so the runtime decision can be evidence-based.
