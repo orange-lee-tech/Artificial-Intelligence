@@ -427,3 +427,10 @@ Inspected `IDAH-BITBOX/serve-mlx` main at `d7021c9d6e66afbcf013b6a1b87431236b2d0
 The Mac mini read-only check against the pinned revision confirmed `model_type=qwen3_5_moe`, top-level `text_config` (40 layers, 256 experts, top-8), no `quantization.text_config`, and 4-bit/group-64 quantization. This matches serve-mlx's manifest builder exactly; **no config compatibility patch is needed**.
 
 The checkpoint has 80 explicit per-layer quantization map keys (each layer's `mlp.gate` and `mlp.shared_expert_gate`). serve-mlx's `_quantize_shell()` supports full `language_model.*` module paths at source level. This does not yet prove runtime module-path/quantization success. Exact 4-bit VLM load, 16 GiB memory admission, and DSH protocol remain untested. No weights downloaded or runtime installed.
+
+
+### 2026-11-20 — Qwen3.6 per-layer quantization-rule coverage PASS
+
+Mac mini read-only audit: 80 per-layer quantization keys expected, 80 found, 0 missing. Global quantization is 4-bit/group-64/affine. The four printed boundary rules (layers 0 and 39, `mlp.gate` and `mlp.shared_expert_gate`) are each 8-bit/group-64. The audit did not print all 80 values, so their complete value distribution remains to be confirmed.
+
+serve-mlx's VLM loader calls `_quantize_shell()` after VLM sanitization and before strict weight loading. Its source-level predicate supports the full `language_model.*` path keys and per-layer dictionaries. Actual MLX-VLM module-path matching and quantization execution remain runtime gates. No package install, weight download, model load, or production DSH/MCP change occurred. Full detail: [PACS integration review](reports/pacs-single-model-dsh-integration-review-2026-11-20.md).
