@@ -351,3 +351,32 @@ The new 15:55:59 CST snapshot is materially worse than the Nov 18 18:30 snapshot
 - **Kimi admission remains HOLD.** No processes were terminated and no production changes, runtime installation, model download or model load occurred.
 
 Evidence: [Host Process and Memory Audit](reports/host-process-memory-audit-2026-11-20-1600.md).
+
+
+### 2026-11-20 — PACS single-model + DSH integration reassessment
+
+**Proposed first qualification candidate: Qwen3.6-35B-A3B 4-bit MLX VLM.** This is a candidate priority, not a deployment approval.
+
+Reason: the intended primary model should cover reasoning, coding, tool calls and image understanding. DSH supplies browser/desktop/file/terminal tools, but its CUA screenshot route still requires an image-capable model. A text-only model does not gain image semantics from the tool scaffold; without an image-capable route, CUA can reject the screenshot request with `MODEL_DOES_NOT_SUPPORT_IMAGES`. Accessibility Tree, browser DOM and OCR remain usable as structured text.
+
+Pinned source-audit target:
+`mlx-community/Qwen3.6-35B-A3B-4bit@38740b847e4cb78f352aba30aa41c76e08e6eb46`.
+
+The checkpoint is documented as 35B total / 3B active, 40 layers, 256 experts, top-8, image-text-to-text, affine 4-bit/group64, converted with mlx-vlm 0.4.4. The exact 4-bit Safetensors headers, expert/shell/vision bytes, 16 GiB peak and DSH tool-call/image path are still unverified.
+
+**Runtime candidate:** `serve-mlx` rather than assuming a text-only streamlx export preserves the complete VLM path. Its current docs support Qwen3.6 vision mode, OpenAI-compatible chat completions and function calling for compatible templates. Its Qwen3.6 M4 validation is on 24 GiB; the documented 16 GiB vision settings are a conservative starting profile, not a PACS Mac mini test. Exact 4-bit checkpoint compatibility must be audited.
+
+**One-model policy:** one local model process, concurrency 1, no fan-out, no simultaneous vision model, no MTP/draft and no wired-memory dependency. Use AX/DOM/OCR first; send one bounded screenshot/ROI only when necessary. Load the model for active task batches and unload after a measured idle grace period or when user activity/host pressure requires it. Close only agent-owned resources, never arbitrary user processes.
+
+Candidate order for qualification:
+1. Qwen3.6-35B-A3B 4-bit — first multimodal + tool-using model audit.
+2. Kimi Linear 48B-A3B 4-bit — text-first fallback if paired with explicit AX/OCR perception; direct CUA screenshots still need an image-capable route.
+3. Qwen3.5-122B-A10B TurboQuant 3-bit — stretch target, deferred.
+
+New read-only audit script:
+[`g6.3-qwen36-vision-header-audit.py`](scripts/mac/g6.3-qwen36-vision-header-audit.py). It pins the exact MLX 4-bit revision and reads only config/index plus verified HTTP Range Safetensors headers. It does not download tensor payloads.
+
+Full design and next qualification sequence:
+[ P A C S single-model + DSH integration review ](reports/pacs-single-model-dsh-integration-review-2026-11-20.md).
+
+No model weights downloaded, no runtime installed, no model started, and no DSH/MCP production configuration changed.
