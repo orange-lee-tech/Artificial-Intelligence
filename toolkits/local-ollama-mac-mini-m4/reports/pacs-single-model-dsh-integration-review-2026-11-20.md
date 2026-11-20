@@ -127,9 +127,9 @@ Updated script:
 - treats MTP tensors separately as optional bytes rather than routed backbone experts;
 - fails closed on unknown `switch_mlp` or unexpected non-stacked backbone expert keys.
 
-Code-level regex samples passed for the pinned index prefix and alternate MLX prefix; MTP names are not captured as backbone experts. This is not yet a successful remote header audit. The corrected script must be rerun on the Mac mini; no memory envelope is valid until it passes exact index/header coverage, shape validation, all-layer/projection checks, and total byte reconciliation.
+Code-level regex samples passed for the pinned index prefix and alternate MLX prefix; MTP names are not captured as backbone experts. This was the pending status at the time of that note. It was superseded by the successful Mac mini run recorded in Section 9.
 
-The model config also declares `mtp_num_hidden_layers=1`; this alone does not prove MTP tensors are present. The next audit prints actual MTP tensor count and bytes so the runtime decision can be evidence-based.
+The model config declares `mtp_num_hidden_layers=1`; the subsequent exact header run found zero MTP tensors in this pinned checkpoint. See Section 9.
 
 
 ## 9. G6.3 Qwen3.6 exact header audit — PASS (Mac mini run, 2026-11-20)
@@ -206,3 +206,29 @@ The remainder must still cover runtime/allocator, prefill scratch beyond the vis
 - Actual 4K/8K runtime peak: **NOT MEASURED**
 - TS900 expert-span I/O / cache hit / overlap: **NOT MEASURED**
 - DSH OpenAI-compatible tool/image round trip: **NOT TESTED**
+
+
+## 10. serve-mlx source compatibility audit — STRUCTURAL MATCH / EXACT CHECKPOINT NOT YET QUALIFIED
+
+Inspected public source at `IDAH-BITBOX/serve-mlx` main commit `d7021c9d6e66afbcf013b6a1b87431236b2d08f9` (package version `0.1.0a7`, Apache-2.0). It is pre-release software and its README's Qwen3.6 end-to-end examples use the 8-bit checkpoint on an M4 MacBook Pro with 24 GiB, not this exact 4-bit checkpoint on the PACS 16 GiB Mac mini.
+
+Positive source-level matches:
+- `storage/safetensors_store.py` has a `qwen3_5_moe` layout matching `language_model.model.layers.N.mlp.switch_mlp.{gate_proj,up_proj,down_proj}.{weight,scales,biases}`.
+- The manifest builder reads the leading expert axis and splits each of the nine tensor fields into exact per-expert byte spans; this matches the PACS header audit's 40 × 256 × 9 structure.
+- The VLM loader accepts `qwen3_5_moe`, constructs the VLM shell without materializing the expert banks, retains vision tower/projector/router/shared/dense weights in Unified Memory, replaces routed MoE blocks with the streaming runtime, and loads the Qwen3-VL processor.
+- The README documents OpenAI-compatible chat, SSE, compatible-template function calling, reasoning output and Qwen3.6 image chat.
+
+Important runtime defaults for vision mode:
+- `--vision` defaults resident expert cache to `off`.
+- VLM scratch reserve is at least 2 GiB.
+- VLM prefill step defaults to 256 tokens.
+- The documented 16 GB starting profile uses no resident expert cache, automatic memory safety margin, 4-bit KV cache, a bounded prompt, and 256-token prefill chunks.
+- On a 16 GiB host, automatic memory safety margin is documented as 4 GiB. These defaults are more conservative than a 3 GiB resident expert cache.
+
+Open qualification gates:
+1. **Config schema:** PACS's header script explicitly accepts either top-level `text_config` or `quantization.text_config`. The inspected serve-mlx manifest builder currently reads only top-level `source_config["text_config"]` for `qwen3_5_moe`. Confirm the exact pinned config's actual key location before running `prepare`; if it is nested only under `quantization`, the current manifest builder will reject it and requires a narrowly scoped compatibility fix. This is a source-level concern, not yet a confirmed failure.
+2. **Exact 4-bit VLM:** no end-to-end test of this pinned 4-bit checkpoint and vision path was found in the inspected test tree. Existing tests exercise small synthetic text-family adapters; README validation is 8-bit Qwen3.6 on 24 GiB.
+3. **Host memory:** runtime-reported shell bytes, startup peak, allocator/scratch peak, and real 4K/8K VLM memory have not been measured on this Mac mini.
+4. **DSH protocol:** actual DSH tool-call, streaming, image and unload/reload round trips remain untested.
+
+Current disposition: serve-mlx is the strongest source-level runtime candidate for this VLM, but exact checkpoint qualification is **PARTIAL**. Do not install it, download weights, run `prepare` against a remote model ID, or change DSH/MCP production settings until the config-schema check and memory admission gates are resolved.
