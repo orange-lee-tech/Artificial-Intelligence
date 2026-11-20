@@ -305,3 +305,15 @@ Memory policy confirmed in serve-mlx source and README:
 A follow-up version of `g6.3-qwen36-vision-header-audit.py` was committed to print vision tensor dtype counts, module component counts, leaf-field counts, and a small tensor sample. This remains header-only; no tensor payloads are fetched. It will establish whether the 333 vision tensors are BF16 or quantized before memory admission.
 
 **Current gate status:** exact config + all 80 quantization values + upstream sparse module names = PASS. Actual MLX-VLM/MLX runtime execution, vision tensor dtype output, host memory admission, and DSH tool/image round trip = NOT TESTED. No package install, checkpoint download, model load, or production DSH/MCP change occurred.
+
+
+### 10.5 Header audit extension — exact router tensor coverage and vision storage format pending
+
+The pinned G6.3 header-only audit script has been extended to fail closed unless it finds, for each of 40 layers:
+
+- `mlp.gate`: `weight`, `scales`, `biases`
+- `mlp.shared_expert_gate`: `weight`, `scales`, `biases`
+
+Expected total is 80 module paths and 240 tensor entries. It accepts both the raw checkpoint path order (`model.language_model.layers...`) and the post-sanitize MLX module path (`language_model.model.layers...`). The script also reports the 333 vision tensors' dtype distribution, module component distribution, leaf-field distribution, and a bounded sample of names/shapes/byte counts.
+
+This remains a metadata/header-only operation. It does not read any Safetensors tensor payload. The updated script is committed on the PACS branch; Mac mini execution is pending.
