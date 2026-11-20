@@ -339,3 +339,15 @@ The new 15:55:59 CST snapshot is materially worse than the Nov 18 18:30 snapshot
 
 **Decision: HOLD. Do not load Kimi or begin the smoke test.** The 2 GiB pool is still only a static design target; the 5 GiB host reserve is unproven. The pressure source is unknown until current resident processes and Ollama model residency are checked. See [Host Operational Follow-up — 2026-11-20 15:55](reports/host-operational-followup-2026-11-20-1555.md).
 
+
+
+### 2026-11-20 16:00 — Process attribution follow-up
+
+- Boot continuity confirmed: `kern.boottime` Nov 17 08:55:18 and uptime 3 days 7:05. Nov 18→Nov 20 cumulative VM counter deltas are therefore same-boot.
+- Ollama `/api/ps` returned an empty model list. No Ollama model was resident at 16:00.
+- Largest individual RSS process: Chrome renderer PID 8135 (~996.5 MiB); DSH renderer PID 880 (~525.7 MiB); next Chrome main/renderer ~322 MiB each; WPS ~253.7 MiB; DSH main ~222.9 MiB.
+- RSS is not unique physical footprint. Do not sum RSS or infer a leak; inspect physical footprint and map Chrome PID 8135 to its tab before taking action.
+- From 15:55 to 16:00, swap used fell 16 MB and swapouts did not increase, while compressor occupancy rose ~127.52 MiB; free percentage remained 51%.
+- **Kimi admission remains HOLD.** No processes were terminated and no production changes, runtime installation, model download or model load occurred.
+
+Evidence: [Host Process and Memory Audit](reports/host-process-memory-audit-2026-11-20-1600.md).
