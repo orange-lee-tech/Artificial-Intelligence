@@ -165,7 +165,7 @@ def main():
     # also accept language_model.model.layers.N from alternate conversions.
     # MTP experts (mtp.layers.N) are intentionally excluded.
     expert_re = re.compile(
-        r"^(?:model\\.)?language_model(?:\\.model)?\\.layers\\.(\\d+)\\.mlp\\.experts\\."
+        r"^(?:model\.)?language_model(?:\.model)?\.layers\.(\d+)\.mlp\.experts\."
     )
     vision_re = re.compile(r"(?:^|\.)(?:vision_tower|visual)(?:\.|$)", re.IGNORECASE)
     layer_bytes = defaultdict(int)
