@@ -96,7 +96,7 @@ No weight download, runtime installation, model execution, service restart, proc
 
 ### G6.3 audit run 1 — 2026-11-20
 
-The first Mac mini run successfully read the config, index, and all four Safetensors shard headers with verified HTTP Range responses. The index declared 20,401,929,952 tensor bytes across four shards. No tensor payloads were downloaded.
+The first Mac mini run successfully read the config, index, and all four Safetensors shard headers with verified HTTP Range responses. The index declared 20,401,929,952 tensor bytes across four shards (about 19.0008 GiB of serialized tensor payload; this is not a RAM requirement). No tensor payloads were downloaded.
 
 The run failed closed at MoE layer classification: the script expected the key prefix `language_model.model.layers.N.mlp.experts.*`, while Qwen3.6 checkpoint naming also uses `model.language_model.layers.N.mlp.experts.*` (as seen in the upstream Qwen3.6 index). The model's MoE structure was not disproved; only the script's name matcher failed.
 
