@@ -459,3 +459,18 @@ User-reported TS900 state: mounted at `/Volumes/SSD`, 954 GiB total, 4.7 GiB use
 The active interpreter is native ARM64 CPython 3.14.5. The checked MLX/runtime package set is completely absent, so the environment is clean. Xcode Command Line Tools are selected at `/Library/Developer/CommandLineTools`.
 
 **Python decision:** MLX 0.32.4 has CPython 3.14 macOS ARM64 wheels, so 3.14 is not an MLX-only blocker. However, the current declared classifiers for mlx-lm 0.32.2 stop at 3.13, mlx-vlm 0.8.0 stop at 3.12, and serve-mlx 0.1.0a7 stop at 3.13. Use a separate CPython 3.12 venv for the first conservative full-stack qualification; do not alter the existing 3.14 installation. No package installation or model download is authorized yet.
+
+
+### 2026-11-20 — Qwen3.6 exact header accounting and host snapshot
+
+The Mac mini executed the pinned HTTP-Range-only audit against `mlx-community/Qwen3.6-35B-A3B-4bit` revision `38740b847e4cb78f352aba30aa41c76e08e6eb46`.
+
+**Header audit PASS:** 4 shards, 2,090 tensors, 274,319 header bytes fetched, exact index-to-header coverage, and no tensor payload downloaded. Total tensor payload is 19.000778 GiB: 16.875 GiB routed experts and 2.125778 GiB non-experts. The non-expert total includes a 0.831804 GiB Vision Tower; all 333 vision tensors are BF16. The non-vision shell is 1.293974 GiB.
+
+Each layer's top-8 expert bundle floor is 14,155,776 bytes; summed over 40 sequential layers this is 566,231,040 bytes (0.527344 GiB) of cumulative per-token expert traffic. It is not simultaneous resident memory. It corresponds to the summed per-layer top-8 slot floor only for a streamlx-style all-layer pool; it must not be applied to serve-mlx's no-resident-cache path.
+
+**Host snapshot:** 16 GiB physical memory, memory_pressure reports 59% system-wide free, swap used 761.62 MiB of 2 GiB, no thermal/performance warning. This is one point-in-time snapshot; cumulative vm_stat counters do not provide a swap-rate delta.
+
+**Python:** Homebrew Python 3.13.13 is installed; Python 3.12 is absent. Keep the current 3.13/3.14 installations untouched and use a separate 3.12 venv for the conservative full-stack qualification when authorized.
+
+**Important:** header accounting passes; 16-GiB runtime memory admission remains untested. Full VLM load, image prefill, and DSH round-trip remain untested. No model weights downloaded, no MLX runtime installed, and no production settings changed. See [full audit record](reports/pacs-single-model-dsh-integration-review-2026-11-20.md).
