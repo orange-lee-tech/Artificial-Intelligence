@@ -288,7 +288,7 @@ The user captured the host with DSH and desktop applications running and no Olla
 
 This is an operational desktop baseline, not a stripped-down idle baseline. Do not translate the 57% figure directly into model-allocatable memory.
 
-The second sample at 18:30 CST reported 56% system-wide free percentage, swap used 446.50 MB, 10,352 free pages, 149,110 wired pages and 288,694 pages occupied by compressor (4.405 GiB). Compared with 15:39: swap used fell 24 MB, cumulative swapouts stayed at 102,568, swapins rose 1,841 pages (+28.77 MiB), and compressor occupancy rose 190.86 MiB. No new swapouts were observed during this interval, but compressor plateau is not established and the 5 GiB non-model reserve remains provisional.
+The 18:30 CST sample on Nov 18 was followed by a materially worse snapshot at 15:55 CST on Nov 20: swap used 446.50→833.62 MB, system-wide free percentage 56%→51%, free pages 10,352→4,930, and compressor occupancy 288,694→362,081 pages (+1.12 GiB). Cumulative swapouts rose by 32,456 pages (+507.13 MiB) if no reboot occurred between samples; boot continuity is not yet verified. The 5 GiB non-model reserve remains unproven and Kimi admission is on hold.
 
 Evidence: [Host Operational Follow-up](reports/host-operational-followup-2026-11-18-1830.md).
 
@@ -331,3 +331,11 @@ No model download, runtime installation, model execution or production configura
 - 5 GiB 非模型预留仍为 provisional；本轮没有安装 Runtime、下载模型或启动 Kimi。
 
 报告：[Kimi Linear G6.2 Exact Header Audit](reports/kimi-linear-g6.2-exact-header-audit-2026-11-18.md) · [Host Operational Follow-up](reports/host-operational-followup-2026-11-18-1830.md)。
+
+
+## 2026-11-20 — Host memory pressure follow-up / Kimi admission hold
+
+The new 15:55:59 CST snapshot is materially worse than the Nov 18 18:30 snapshot: swap used 833.62 MB (+387.12 MB), system-wide free percentage 51% (-5 pp), free pages 4,930 (-5,422 pages), and compressor occupancy 362,081 pages (+73,387 pages / +1.1198 GiB). Wired pages decreased by 21,522 pages. Cumulative swapouts increased by 32,456 pages (+507.13 MiB) if no reboot occurred; boot continuity is not yet verified because uptime/boot time was not supplied.
+
+**Decision: HOLD. Do not load Kimi or begin the smoke test.** The 2 GiB pool is still only a static design target; the 5 GiB host reserve is unproven. The pressure source is unknown until current resident processes and Ollama model residency are checked. See [Host Operational Follow-up — 2026-11-20 15:55](reports/host-operational-followup-2026-11-20-1555.md).
+
