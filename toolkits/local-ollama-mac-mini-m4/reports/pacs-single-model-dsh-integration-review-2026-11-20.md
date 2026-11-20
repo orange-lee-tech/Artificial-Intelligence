@@ -263,7 +263,7 @@ The inspected `_quantize_shell()` uses the checkpoint's `quantization` object, l
 No weights were downloaded; no package was installed; no model or service was started; no DSH/MCP production setting was changed.
 
 
-### 10.3 Per-layer quantization-rule coverage — PASS; value distribution partially observed (Mac mini, 2026-11-20)
+### 10.3 Per-layer quantization-rule coverage — PASS (Mac mini, 2026-11-20)
 
 The user ran the standalone read-only audit against the pinned config and returned:
 
@@ -273,8 +273,35 @@ The user ran the standalone read-only audit against the pinned config and return
 - Global quantization: `bits=4`, `group_size=64`, `mode=affine`
 - Four printed boundary entries (layer 0 and layer 39, `mlp.gate` and `mlp.shared_expert_gate`) each return `{group_size:64,bits:8}`.
 
-This proves exact key coverage for the expected 80 entries and confirms the printed boundary values. **The audit did not print or aggregate all 80 values**, so do not yet claim that every per-layer entry has the same 8-bit/group-64 value; a compact value-distribution check remains before runtime qualification.
+This proves exact key coverage and the complete value distribution: all 80 rules are `(bits=8, group_size=64, mode=affine)`. No per-layer rule is missing or extra.
 
 Source inspection at serve-mlx commit `d7021c9d6e66afbcf013b6a1b87431236b2d08f9` confirms the VLM path calls `_quantize_shell(model, mlx_nn, source_config, weights)` after VLM weight sanitization and before strict weight loading. `_quantize_shell()` reads global bits/group_size/mode, checks full module paths in the per-layer quantization map (with a fallback stripping the leading `language_model.`), and returns each matching per-layer dict to `mlx.nn.quantize`'s `class_predicate`. This is a source-level compatibility match for the returned key format, not an executed proof that all actual MLX-VLM module paths match at runtime.
 
 No package was installed, no weights downloaded, no model loaded, and no DSH/MCP production setting changed.
+
+
+### 10.4 Complete quantization + upstream VLM architecture audit — PASS at source/config level; runtime remains open
+
+The Mac mini's next read-only config audit returned the complete distribution:
+
+- Expected 80 / actual 80 / missing 0 / extra 0.
+- All 80 per-layer rules: `(8-bit, group_size=64, affine)`.
+- Global rule: `(4-bit, group_size=64, affine)`.
+
+The MLX 0.32 API contract supports this exact pattern: `mlx.nn.quantize` accepts a `class_predicate` returning either a boolean or a parameter dictionary passed to `to_quantized`; `mlx.nn.Linear.to_quantized` defaults to `mode="affine"`. Therefore the per-layer dictionaries' omitted `mode` inherit affine, matching the checkpoint. This is API/source evidence, not a runtime load result.
+
+Upstream MLX-VLM source checks:
+- `mlx_vlm.models.qwen3_5_moe.language` defines a distinct sparse Qwen3.5-MoE path. `Qwen3_5MoeSparseMoeBlock` contains `gate`, `switch_mlp` (backed by `SwitchGLU`), `shared_expert`, and `shared_expert_gate`; both gate modules are MLX Linear layers. These names correspond to the checkpoint's 80 quantization keys and the serve-mlx VLM replacement adapter.
+- `mlx_vlm.models.qwen3_5_moe.__init__` exports `Model`, `LanguageModel`, `VisionModel`, and registers `Qwen3VLProcessor` for `qwen3_5_moe`. serve-mlx's Qwen3.5-MoE VLM path imports the same language module, temporarily replaces its `SwitchGLU` constructor with a no-weight stub during shell creation, then replaces all 40 sparse blocks with streamed blocks. The CLI's `--vision` flag is passed through to this VLM path.
+- The separate upstream issue about dense `qwen3_5` MLPs (#1073) is not the same code path as the dedicated `qwen3_5_moe` sparse module; do not conflate them.
+- The Qwen3.6 nested vision-weight remapping fix was merged upstream as MLX-VLM PR #1179 on 2026-05-13 and was included in the v0.6.0 release. serve-mlx declares `mlx-vlm>=0.6.15`, so its declared minimum is newer than that fix. However, the dependency is open-ended and the exact resolved version is not yet locked or tested.
+- Existing serve-mlx integration tests exercise tiny synthetic text-family adapters. The inspected test tree does not contain an end-to-end Qwen3.6 VLM shell/image test. Exact 4-bit VLM sanitization, vision-tower population, and generation therefore remain runtime qualification gates.
+
+Memory policy confirmed in serve-mlx source and README:
+- `--vision` defaults resident expert cache to off, reserves at least 2 GiB transient scratch, and defaults prefill chunks to 256 tokens.
+- The documented 16 GiB VLM starting profile uses no resident expert cache, automatic safety margin, 4-bit KV cache, bounded prompt/output, and 256-token prefill. This is consistent with the PACS single-model/no-wired-memory objective. Do not force the previous 3 GiB cache target into the first VLM smoke test.
+- The Qwen3.6 VLM processor path uses the Qwen3-VL processor, consistent with the upstream Qwen3.5-MoE model package registration.
+
+A follow-up version of `g6.3-qwen36-vision-header-audit.py` was committed to print vision tensor dtype counts, module component counts, leaf-field counts, and a small tensor sample. This remains header-only; no tensor payloads are fetched. It will establish whether the 333 vision tensors are BF16 or quantized before memory admission.
+
+**Current gate status:** exact config + all 80 quantization values + upstream sparse module names = PASS. Actual MLX-VLM/MLX runtime execution, vision tensor dtype output, host memory admission, and DSH tool/image round trip = NOT TESTED. No package install, checkpoint download, model load, or production DSH/MCP change occurred.
