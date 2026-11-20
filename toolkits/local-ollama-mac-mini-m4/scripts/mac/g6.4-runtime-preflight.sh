@@ -183,6 +183,8 @@ PY
 echo
 echo "===== PREFLIGHT RESULT ====="
 echo "RUNTIME_PREFLIGHT=PASS"
+printf '%s\n' "$UPSTREAM_SHA" > "$BASE/runtime-preflight.pass"
+echo "PREFLIGHT_MARKER=$BASE/runtime-preflight.pass"
 echo "MODEL_WEIGHTS_DOWNLOADED=NO"
 echo "OLLAMA_DSH_MCP_PRODUCTION_CONFIG_CHANGED=NO"
 echo "VENV=$VENV"
