@@ -64,6 +64,7 @@ This project follows PACS evidence and acceptance rules. Documentation is not op
 - [Provider 扩展点专项审计交接](PROVIDER-EXTENSION-AUDIT-HANDOFF.md) — 交给 DeepSeek Harness 的只读源码审计任务 / Read-only source-audit task for DeepSeek Harness.
 
 - [第二阶段工程规格｜Phase 2 workstation specification](PHASE2-CLOUD-WORKSTATION-SPEC.md) — 云端预算守卫、模型路由、微信通信及验收入口 / Cloud spend guard, adaptive routing, WeChat gateway, and acceptance references.
+- [Mac mini M4 本地模型部署工具包](../../../toolkits/local-ollama-mac-mini-m4/README.md) — 16 GiB M4 的预检、Ollama 配置、模型下载、冒烟测试和回滚脚本；当前仅准备，尚未在主机执行。
 
 ## 公开仓库约束｜Public Repository Boundaries
 
