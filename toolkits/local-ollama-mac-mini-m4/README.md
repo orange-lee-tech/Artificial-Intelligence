@@ -498,3 +498,10 @@ Run `scripts/mac/g6.4-runtime-preflight.sh` only after confirming TS900 is mount
 The installed `qwen3.5:4b` tag is confirmed present but not loaded. Remove only that exact tag with `ollama rm qwen3.5:4b` if retiring it; this prevents accidental selection and frees disk, not unified memory.
 
 After preflight PASS, and not before, download the pinned Qwen3.6 checkpoint to TS900 and build its manifest. The first actual load must use one request at a time, native VLM, no resident expert cache, a 2 GiB scratch reserve, short context, no MTP/draft, no fan-out, and no wired-memory limit. Only measured stable results can authorize a bounded expert-cache A/B and later DSH integration.
+
+
+### G6.4 — exact-revision model download (run only after runtime preflight PASS)
+
+Use `scripts/mac/g6.4-download-pinned-qwen36.sh` after the preflight script writes its pass marker. It downloads the audited checkpoint revision `38740b847e4cb78f352aba30aa41c76e08e6eb46` directly to TS900, verifies the 4 shard sizes and all 80 8-bit gate overrides, then builds and validates the 10,240-expert manifest from the local path.
+
+Do **not** run `mlx-moe-stream prepare --model mlx-community/Qwen3.6-35B-A3B-4bit` directly: the current resolver does not expose a revision argument and would not enforce the audited immutable revision. The pinned download script uses `snapshot_download(revision=...)` explicitly.
