@@ -156,11 +156,11 @@ User executed the corrected read-only audit against the pinned artifact:
 
 Assuming the runtime cache budget is in GiB and one complete expert bundle occupies 1,769,472 bytes:
 
-| Expert cache | Whole bundles (floor) | Average bundles/layer | Fraction of 16.875 GiB expert pool | Capacity above one-token Top-8 floor |
-|---:|---:|---:|---:|---:|
-| 2 GiB | 1,213 | 30.325 | 11.85% | 1.472656 GiB |
-| 3 GiB | 1,820 | 45.500 | 17.78% | 2.472656 GiB |
-| 4 GiB | 2,427 | 60.675 | 23.70% | 3.472656 GiB |
+| Expert cache | Whole bundles (floor) | Average bundles/layer | Fraction of 16.875 GiB expert pool |
+|---:|---:|---:|---:|
+| 2 GiB | 1,213 | 30.325 | 11.85% |
+| 3 GiB | 1,820 | 45.500 | 17.78% |
+| 4 GiB | 2,427 | 60.675 | 23.70% |
 
 These are capacity equivalents, not predicted cache hit rates. Real hit rate depends on router locality, expert popularity, per-layer eviction policy, and prefetch. Uniform per-layer allocations of 30/45/60 experts consume 1.977539/2.966309/3.955078 GiB respectively.
 
@@ -180,7 +180,7 @@ These are configuration/source-derived state sizes, not measured runtime peaks. 
 
 The one-token all-cold Top-8 expert payload is 540 MiB. At the previously measured 834.7 MiB/s sequential `F_NOCACHE` read baseline, the idealized payload-transfer time is 0.647 seconds, or 1.546 tokens/s if every token incurred a full cold Top-8 read and there were no compute/transfer overlap or other overhead.
 
-This is only a sequential-bandwidth screen, not a tokens/s forecast. Each token selects 320 expert bundles (8 × 40); each bundle is represented by nine projection/quantization tensor slices, so there can be up to 2,880 logical slice ranges before adjacent-range merging. Actual span sizes, random-read amplification, cache misses, prefetch waste and I/O/Metal overlap remain G6.4 measurements.
+This is only a sequential-bandwidth screen, not a tokens/s forecast. Each token selects 320 expert bundles (8 × 40); each bundle is represented by nine projection/quantization tensor slices, so there can be up to 2,880 logical slice ranges before adjacent-range merging. The 540 MiB is cumulative full-miss read volume across the token, not a claim that all 540 MiB must be simultaneously resident. Actual span sizes, random-read amplification, cache misses, prefetch waste and I/O/Metal overlap remain G6.4 measurements.
 
 ### 9.4 Preliminary 16 GiB admission screen — NOT A PASS
 
@@ -232,3 +232,14 @@ Open qualification gates:
 4. **DSH protocol:** actual DSH tool-call, streaming, image and unload/reload round trips remain untested.
 
 Current disposition: serve-mlx is the strongest source-level runtime candidate for this VLM, but exact checkpoint qualification is **PARTIAL**. Do not install it, download weights, run `prepare` against a remote model ID, or change DSH/MCP production settings until the config-schema check and memory admission gates are resolved.
+
+
+### 10.1 Runtime memory semantics relevant to the cache table
+
+The inspected `serve-mlx` runtime has two distinct modes:
+- `NoCacheExpertRuntime`: each route group reads and materializes one expert bundle from SSD, executes it, and does not retain a resident expert cache.
+- `CachedExpertRuntime`: a global byte-budgeted LRU retains expert bundles; active bundles are pinned during execution.
+
+Therefore the 0.527344 GiB Top-8 figure is the cumulative full-miss bytes across all 40 layers for one token. It is **not** a mandatory simultaneous resident-memory floor for `serve-mlx` no-cache mode. A single bundle is 1.6875 MiB; the actual peak also depends on execution temporaries and overlap. The earlier streamlx per-layer pool-floor rule remains specific to that runtime's slot-pool design and must not be blindly applied to serve-mlx.
+
+For the VLM path, serve-mlx defaults to `resident-budget off`, at least 2 GiB VLM scratch reserve, and 256-token prefill. This makes a no-cache correctness baseline the lowest-risk first runtime profile; resident-cache A/B should follow only if the measured memory budget permits.
