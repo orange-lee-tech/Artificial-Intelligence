@@ -161,8 +161,11 @@ def main():
     if set(all_tensors) != expected_keys:
         raise RuntimeError("combined shard headers do not exactly match index weight_map")
 
+    # MLX-VLM Qwen checkpoints commonly use model.language_model.layers.N;
+    # also accept language_model.model.layers.N from alternate conversions.
+    # MTP experts (mtp.layers.N) are intentionally excluded.
     expert_re = re.compile(
-        r"^language_model\.model\.layers\.(\d+)\.mlp\.experts\."
+        r"^(?:model\\.)?language_model(?:\\.model)?\\.layers\\.(\\d+)\\.mlp\\.experts\\."
     )
     vision_re = re.compile(r"(?:^|\.)(?:vision_tower|visual)(?:\.|$)", re.IGNORECASE)
     layer_bytes = defaultdict(int)
@@ -242,8 +245,12 @@ def main():
     expected_layers = list(range(EXPECTED_LAYERS))
     actual_layers = sorted(layer_bytes)
     if actual_layers != expected_layers:
+        candidate_keys = [
+            name for name in all_tensors if ".mlp.experts." in name
+        ][:20]
         raise RuntimeError(
-            f"expected MoE layers {expected_layers}, found {actual_layers}"
+            f"expected MoE layers {expected_layers}, found {actual_layers}; "
+            f"expert_key_samples={candidate_keys}"
         )
     for layer in expected_layers:
         suffixes = layer_suffixes[layer]
