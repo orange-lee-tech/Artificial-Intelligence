@@ -317,3 +317,27 @@ The pinned G6.3 header-only audit script has been extended to fail closed unless
 Expected total is 80 module paths and 240 tensor entries. It accepts both the raw checkpoint path order (`model.language_model.layers...`) and the post-sanitize MLX module path (`language_model.model.layers...`). The script also reports the 333 vision tensors' dtype distribution, module component distribution, leaf-field distribution, and a bounded sample of names/shapes/byte counts.
 
 This remains a metadata/header-only operation. It does not read any Safetensors tensor payload. The updated script is committed on the PACS branch; Mac mini execution is pending.
+
+
+### 10.6 Mac mini storage and Python environment snapshot — partial readiness PASS (2026-11-20)
+
+User-provided host output:
+
+- TS900 mounted at `/Volumes/SSD`, APFS device `/dev/disk7s1`.
+- Filesystem capacity 954 GiB; used 4.7 GiB; available 949 GiB; 1% capacity.
+- The current output confirms mount and free capacity only; it does not re-run the earlier sequential/random I/O benchmark.
+- Active `python3` resolves to `/opt/homebrew/opt/python@3.14/bin/python3.14`, CPython 3.14.5, native `arm64`, Darwin 25.2.0.
+- The inspected package set is clean: MLX, mlx-lm, mlx-vlm, mlx-moe-stream, NumPy, Safetensors, Transformers, Tokenizers, and Hugging Face Hub are all not installed.
+- `xcode-select -p` resolves to `/Library/Developer/CommandLineTools`; this confirms Command Line Tools selection, not a full Xcode installation.
+
+Python compatibility assessment from current upstream package metadata (checked 2026-11-20):
+
+- MLX 0.32.4 publishes CPython 3.14 macOS ARM64 wheels; Python 3.14.5 is therefore not, by itself, an MLX wheel blocker.
+- mlx-lm 0.32.2 advertises Python classifiers 3.11–3.13.
+- mlx-vlm 0.8.0 advertises Python classifiers 3.10–3.12.
+- serve-mlx 0.1.0a7 advertises Python classifiers 3.10–3.13.
+- The packages' `Requires-Python` fields are lower bounds, so missing 3.14 classifiers mean the complete stack is not declared/tested for 3.14; they do not prove an explicit 3.14 incompatibility.
+
+**Conservative runtime choice:** use a dedicated CPython 3.12 environment for the first exact-stack qualification, because 3.12 is the common declared classifier intersection. Keep the existing Homebrew 3.14 installation untouched. Homebrew provides a separate `python@3.12` formula for Apple Silicon. Before installing anything, perform a read-only check for an existing 3.12 interpreter and collect the missing host memory baseline plus the extended G6.3 header-audit output.
+
+**Gate state:** TS900 mount/free-capacity = PASS; clean Python package baseline = PASS; Command Line Tools path = PRESENT; Python 3.14 full-stack declared support = NOT ESTABLISHED; Python 3.12 interpreter presence = NOT CHECKED. The user-provided excerpt does not include the G6.3 extended header-audit output or the memory-pressure/Swap baseline, so those remain pending. No runtime installed, no model downloaded or loaded, and no production configuration changed.
