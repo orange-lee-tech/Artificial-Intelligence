@@ -161,16 +161,16 @@ def main():
     if set(all_tensors) != expected_keys:
         raise RuntimeError("combined shard headers do not exactly match index weight_map")
 
-    # MLX-VLM Qwen checkpoints commonly use model.language_model.layers.N;
-    # also accept language_model.model.layers.N from alternate conversions.
-    # MTP experts (mtp.layers.N) are intentionally excluded.
+    # This pinned MLX checkpoint stores routed experts as stacked
+    # switch_mlp tensors, not as per-expert ".mlp.experts.N" keys.
+    # The leading tensor dimension is the expert axis (256).
     expert_re = re.compile(
-        r"^(?:model\.)?language_model(?:\.model)?\.layers\.(\d+)\.mlp\.experts\."
+        r"^(?:model\.)?language_model(?:\.model)?\.layers\.(\d+)\.mlp\.switch_mlp\.(gate_proj|up_proj|down_proj)\.(weight|scales|biases)$"
     )
     vision_re = re.compile(r"(?:^|\.)(?:vision_tower|visual)(?:\.|$)", re.IGNORECASE)
     layer_bytes = defaultdict(int)
     layer_tensor_count = defaultdict(int)
-    layer_suffixes = defaultdict(set)
+    layer_projection_fields = defaultdict(lambda: defaultdict(set))
     categories = defaultdict(int)
     category_tensors = defaultdict(int)
     expert_bytes = 0
@@ -194,22 +194,32 @@ def main():
         expert_match = expert_re.match(name)
         if expert_match:
             layer = int(expert_match.group(1))
-            if not isinstance(shape, list) or not shape or int(shape[0]) != EXPECTED_EXPERTS:
+            projection = expert_match.group(2)
+            field = expert_match.group(3)
+            if not isinstance(shape, list) or len(shape) < 2 or int(shape[0]) != EXPECTED_EXPERTS:
                 raise RuntimeError(
-                    f"expert tensor does not have {EXPECTED_EXPERTS} leading experts: "
-                    f"{name} shape={shape}"
+                    f"stacked expert tensor must have leading dimension "
+                    f"{EXPECTED_EXPERTS}: {name} shape={shape}"
+                )
+            if size % EXPECTED_EXPERTS:
+                raise RuntimeError(
+                    f"stacked expert tensor bytes not divisible by expert count: {name}"
                 )
             expert_bytes += size
             layer_bytes[layer] += size // EXPECTED_EXPERTS
             layer_tensor_count[layer] += 1
-            layer_suffixes[layer].add(name.split(".mlp.experts.", 1)[1].split(".")[0])
-            if size % EXPECTED_EXPERTS:
-                raise RuntimeError(f"expert tensor bytes not divisible by expert count: {name}")
+            layer_projection_fields[layer][projection].add(field)
             expert_tensor_count += 1
             continue
 
-        if ".mlp.experts." in name:
-            raise RuntimeError(f"unclassified expert tensor key; refusing to undercount: {name}")
+        if ".mlp.switch_mlp." in name:
+            raise RuntimeError(
+                f"unclassified switch_mlp tensor key; refusing to undercount: {name}"
+            )
+        if ".mlp.experts." in name and ".mtp.layers." not in name:
+            raise RuntimeError(
+                f"unexpected non-stacked backbone expert key; refusing to undercount: {name}"
+            )
 
         non_expert_bytes += size
         if vision_re.search(name):
@@ -246,18 +256,28 @@ def main():
     actual_layers = sorted(layer_bytes)
     if actual_layers != expected_layers:
         candidate_keys = [
-            name for name in all_tensors if ".mlp.experts." in name
+            name for name in all_tensors if ".mlp.switch_mlp." in name
         ][:20]
         raise RuntimeError(
             f"expected MoE layers {expected_layers}, found {actual_layers}; "
-            f"expert_key_samples={candidate_keys}"
+            f"switch_mlp_key_samples={candidate_keys}"
         )
+    expected_projections = {"gate_proj", "up_proj", "down_proj"}
+    expected_fields = {"weight", "scales", "biases"}
     for layer in expected_layers:
-        suffixes = layer_suffixes[layer]
-        if not any("gate_up_proj" in suffix for suffix in suffixes):
-            raise RuntimeError(f"layer {layer} missing gate_up_proj expert tensor")
-        if not any("down_proj" in suffix for suffix in suffixes):
-            raise RuntimeError(f"layer {layer} missing down_proj expert tensor")
+        actual_projections = set(layer_projection_fields[layer])
+        if actual_projections != expected_projections:
+            raise RuntimeError(
+                f"layer {layer} projection mismatch: expected "
+                f"{sorted(expected_projections)}, found {sorted(actual_projections)}"
+            )
+        for projection in sorted(expected_projections):
+            actual_fields = layer_projection_fields[layer][projection]
+            if actual_fields != expected_fields:
+                raise RuntimeError(
+                    f"layer {layer} {projection} quantization fields mismatch: "
+                    f"expected {sorted(expected_fields)}, found {sorted(actual_fields)}"
+                )
 
     if vision_tensor_count == 0 or vision_bytes == 0:
         raise RuntimeError(
@@ -283,6 +303,7 @@ def main():
     print(f"tensor_count={len(all_tensors)}")
     print(f"header_bytes_fetched={header_bytes_total}")
     print(f"tensor_payload_bytes_total={tensor_bytes_total}")
+    print("expert_layout=stacked_switch_mlp[256,...]")
     print(f"routed_expert_tensor_count={expert_tensor_count}")
     print(f"routed_expert_tensor_bytes={expert_bytes}")
     print(f"routed_moe_layer_count={len(actual_layers)}")
