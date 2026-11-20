@@ -72,7 +72,8 @@ def main():
     print("mode=HTTP Range only; no Safetensors tensor payloads are downloaded")
 
     config = json.loads(get_small("config.json", MAX_SMALL))
-    text_config = config.get("text_config")
+    quant = config.get("quantization") or {}
+    text_config = config.get("text_config") or quant.get("text_config")
     if not isinstance(text_config, dict):
         # Some MLX-VLM conversions place text fields at the top level.
         text_config = config
@@ -84,7 +85,6 @@ def main():
     num_layers = int(get_cfg_value(config, text_config, "num_hidden_layers") or 0)
     num_experts = int(get_cfg_value(config, text_config, "num_experts") or 0)
     top_k = int(get_cfg_value(config, text_config, "num_experts_per_tok") or 0)
-    quant = config.get("quantization") or {}
     bits = quant.get("bits")
     group_size = quant.get("group_size")
     vision_config = config.get("vision_config")
@@ -101,7 +101,9 @@ def main():
     print(f"config.num_hidden_layers={num_layers}")
     print(f"config.num_experts={num_experts}")
     print(f"config.num_experts_per_tok={top_k}")
-    print(f"config.quantization={json.dumps(quant, sort_keys=True)}")
+    print(f"config.quantization.bits={bits}")
+    print(f"config.quantization.group_size={group_size}")
+    print(f"config.quantization.mode={quant.get('mode')}")
     if not isinstance(vision_config, dict) or not vision_config:
         raise RuntimeError("vision_config missing; refusing to classify this as a VLM checkpoint")
     print(f"config.vision_config.depth={vision_config.get('depth')}")
