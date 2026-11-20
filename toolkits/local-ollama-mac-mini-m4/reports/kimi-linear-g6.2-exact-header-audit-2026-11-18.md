@@ -233,3 +233,18 @@ At 16 KiB/page, current compressor occupancy is approximately 5.5249 GiB, wired 
 **Admission:** Kimi model load / smoke test is **HOLD — NOT APPROVED**. The 2 GiB pool remains a static design target only. The provisional 5 GiB non-model reserve is not validated. Obtain uptime/boot time, current top resident processes and Ollama `/api/ps` before further model-admission work.
 
 Full evidence: [Host Operational Follow-up — 2026-11-20 15:55](host-operational-followup-2026-11-20-1555.md).
+
+
+## 12. Host process attribution follow-up — 2026-11-20 16:00 CST
+
+The user supplied a follow-up capture at 16:00:31 CST:
+
+- `uptime`: 3 days 7:05; `kern.boottime`: Nov 17 08:55:18. This confirms the Nov 18 and Nov 20 cumulative-counter comparison spans one boot.
+- Ollama `/api/ps` returned `{"models":[]}`: no Ollama model was resident at capture time.
+- Largest individual RSS processes: Chrome renderer PID 8135 at 996.5 MiB; DSH renderer PID 880 at 525.7 MiB; Chrome main PID 8030 at 322.3 MiB; Chrome renderer PID 35308 at 322.0 MiB; WPS PID 48912 at 253.7 MiB; DSH main PID 899 at 222.9 MiB.
+- RSS is not unique physical footprint and cannot be summed as true physical memory. These entries identify candidates for further inspection, not proven causes or leaks.
+- Between 15:55:59 and 16:00:31, swap used fell 16 MB and swapouts were unchanged, while compressor occupancy rose by 8,161 pages (+127.52 MiB). The 51% system-wide free percentage did not change.
+
+**Disposition:** Kimi remains **HOLD — NOT APPROVED**. No process termination, service restart, runtime installation, model download/load or production configuration change was performed. Next step is read-only per-process physical-footprint inspection for the largest processes and identifying Chrome PID 8135's tab using Chrome Task Manager.
+
+Full evidence: [Host Process and Memory Audit — 2026-11-20 16:00](host-process-memory-audit-2026-11-20-1600.md).
