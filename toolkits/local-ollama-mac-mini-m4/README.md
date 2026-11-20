@@ -431,6 +431,17 @@ The checkpoint has 80 explicit per-layer quantization map keys (each layer's `ml
 
 ### 2026-11-20 — Qwen3.6 per-layer quantization-rule coverage PASS
 
-Mac mini read-only audit: 80 per-layer quantization keys expected, 80 found, 0 missing. Global quantization is 4-bit/group-64/affine. The four printed boundary rules (layers 0 and 39, `mlp.gate` and `mlp.shared_expert_gate`) are each 8-bit/group-64. The audit did not print all 80 values, so their complete value distribution remains to be confirmed.
+Mac mini read-only audit: 80 expected, 80 found, 0 missing, 0 extra. **All 80 rules are 8-bit/group-64/affine**; global quantization is 4-bit/group-64/affine.
 
 serve-mlx's VLM loader calls `_quantize_shell()` after VLM sanitization and before strict weight loading. Its source-level predicate supports the full `language_model.*` path keys and per-layer dictionaries. Actual MLX-VLM module-path matching and quantization execution remain runtime gates. No package install, weight download, model load, or production DSH/MCP change occurred. Full detail: [PACS integration review](reports/pacs-single-model-dsh-integration-review-2026-11-20.md).
+
+
+### 2026-11-20 — Qwen3.6 quantization and VLM source audit completed
+
+The complete 80-rule audit passed: every per-layer `mlp.gate` and `mlp.shared_expert_gate` entry is 8-bit/group-64/affine; global shell quantization is 4-bit/group-64/affine. MLX's `class_predicate` accepts per-module parameter dictionaries, and Linear's default quantization mode is affine, matching the checkpoint's rule values.
+
+The upstream MLX-VLM Qwen3.5-MoE package has the sparse module names expected by serve-mlx (`gate`, `switch_mlp`, `shared_expert`, `shared_expert_gate`) and registers the Qwen3-VL processor for `qwen3_5_moe`. The Qwen3.6 vision weight-remapping fix was merged in MLX-VLM PR #1179 and is included in v0.6.0; serve-mlx's declared minimum is `mlx-vlm>=0.6.15`, but its exact resolved dependency set is not pinned.
+
+**16GB vision policy:** serve-mlx defaults `--vision` to resident expert cache off, at least 2GiB scratch reserve, and 256-token prefill chunks. Do not force a 3GiB expert cache into the first VLM smoke test. The inspected serve-mlx tests cover synthetic text adapters, not an end-to-end Qwen3.6 VLM image load. Actual 4-bit VLM loading, vision-tower population, host-memory admission, and DSH image/tool round-trip remain untested.
+
+The G6.3 header audit script now also reports vision tensor dtypes and module fields without downloading tensor payloads. Full details: [PACS integration review](reports/pacs-single-model-dsh-integration-review-2026-11-20.md).
