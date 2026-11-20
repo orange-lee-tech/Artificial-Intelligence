@@ -102,7 +102,7 @@ diff --git a/src/mlx_moe_stream/storage/safetensors_store.py b/src/mlx_moe_strea
 diff --git a/tests/unit/test_safetensors_store.py b/tests/unit/test_safetensors_store.py
 --- a/tests/unit/test_safetensors_store.py
 +++ b/tests/unit/test_safetensors_store.py
-@@ -211,5 +211,19 @@
+@@ -211,4 +211,18 @@
      shell = load_nonexpert_weights(
          manifest, include=lambda name: name.startswith("language_model.")
      )
