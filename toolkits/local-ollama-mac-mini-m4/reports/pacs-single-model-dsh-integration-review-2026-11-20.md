@@ -390,3 +390,36 @@ The user executed the pinned read-only audit script and returned its complete ou
 - Keep 3.14 and 3.13 untouched. The conservative common declared-classifier choice remains a separate Python 3.12 environment; it has not yet been installed.
 
 **Gate status:** exact Safetensors index/header coverage = PASS; exact expert and non-expert byte accounting = PASS; Vision dtype/layout accounting = PASS; host one-point snapshot = RECORDED; Python 3.12 interpreter = NOT INSTALLED; 16-GiB runtime memory admission = NOT TESTED; actual VLM load/generation and DSH image/tool round trip = NOT TESTED. No model weights downloaded, no MLX runtime installed, and no production Ollama/DSH/MCP configuration changed.
+
+
+### 10.8 Decision correction — checkpoint size is not RAM requirement; stop expanding static audit (2026-11-20)
+
+**Unit and meaning correction**
+- The 19.000778 figure is GiB (binary units), equivalent to 20,401,929,952 bytes or about 20.40 decimal GB.
+- It is the sum of all Safetensors tensor payloads in the pinned checkpoint. It is the full tensor-weight storage footprint, not the RAM required for inference and not the amount read for every token.
+- It excludes small repository-side files such as configuration, tokenizer and processor metadata.
+- The complete 19.000778 GiB payload cannot be assumed resident in 16 GiB unified memory. This only rules out full-resident loading, not out-of-core sparse expert inference.
+
+**Sparse expert interpretation**
+- Per layer, Top-8 selected expert payload is 14,155,776 bytes = 13.5 MiB.
+- Across 40 sequential layers, selected expert payload sums to 566,231,040 bytes = 540 MiB per token's routed path. This is a cumulative selected-weight footprint across layers, not a simultaneously resident working set.
+- It is not necessarily physical SSD traffic per token: repeated experts can be served from runtime/OS cache. With a cold/no-cache path, it is an approximate read-demand scenario; actual disk traffic depends on cache hit rate, prefetch, access locality and runtime implementation.
+- If the previously measured TS900 sequential read baseline of about 834.7 MiB/s applied perfectly to this entire 540 MiB as sequential I/O, the ideal bandwidth-only floor would be about 0.65 s/token (~1.55 token/s). This is an optimistic ceiling, not a performance prediction: selected slices may be non-sequential, and real execution adds I/O latency, dispatch, dequantization, compute and synchronization. Cache hits can reduce physical reads.
+- The 13.5 MiB per-layer figure is a selected-expert payload size, not a complete layer execution memory budget; runtime buffers and intermediate activations are additional.
+
+**Memory admission policy**
+- Do not add the entire 19.000778 GiB checkpoint to RAM budget.
+- Do not add the 540 MiB cumulative per-token figure as if it were simultaneously resident.
+- Assess actual runtime allocations: resident non-expert/shell and Vision weights, current-layer expert staging/cache, KV/recurrent state, Vision prefill scratch, MLX/allocator overhead, DSH/macOS baseline and explicit safety headroom.
+- Expert-cache size is a performance-vs-memory control, not a binary requirement to load all experts. The first qualification should use the runtime's documented conservative no-resident-expert-cache VLM path; if it runs safely but is I/O-bound, evaluate a bounded cache A/B rather than assuming zero cache is the final configuration.
+
+**Project execution decision**
+- Static checkpoint/header/quantization/source audits are sufficient to close the current static-audit phase. Do not add further broad audits without a specific unresolved failure hypothesis.
+- Next work should be runtime qualification in an isolated environment, then measured memory and task-quality evaluation. Do not download full checkpoint weights until the runtime environment and shell/vision load path are verified.
+- Do not treat model size alone as the go/no-go decision. The acceptance criteria are successful stable generation, image task correctness, controlled peak memory/swap behavior, and useful throughput under the chosen bounded expert-cache policy.
+
+**Ollama 4B model**
+- Prior user-provided `/api/ps` output showed `{"models":[]}` at the time of that earlier check; it did not establish whether a 4B model remains installed on disk.
+- A fresh `ollama list` and `ollama ps` are required to identify the exact installed tag and current resident state before removal.
+- Removing an unloaded 4B model frees disk space and prevents accidental selection, but does not materially increase unified memory. It does not uninstall the Ollama application/service.
+- Do not run a wildcard or remove all Ollama models. Remove only the verified 4B tag if the user chooses to retire it.
