@@ -474,3 +474,14 @@ Each layer's top-8 expert bundle floor is 14,155,776 bytes; summed over 40 seque
 **Python:** Homebrew Python 3.13.13 is installed; Python 3.12 is absent. Keep the current 3.13/3.14 installations untouched and use a separate 3.12 venv for the conservative full-stack qualification when authorized.
 
 **Important:** header accounting passes; 16-GiB runtime memory admission remains untested. Full VLM load, image prefill, and DSH round-trip remain untested. No model weights downloaded, no MLX runtime installed, and no production settings changed. See [full audit record](reports/pacs-single-model-dsh-integration-review-2026-11-20.md).
+
+
+### 2026-11-20 — Runtime-first decision correction
+
+The audited `19.000778 GiB` is the complete Safetensors tensor payload (20.40 decimal GB), not an inference RAM requirement. It rules out full-resident loading in 16 GiB, but does not rule out sparse out-of-core expert execution.
+
+Each layer's Top-8 expert payload is 13.5 MiB; summed across 40 sequential layers, the selected expert payload is 540 MiB per routed token path. This is cumulative across layers, not simultaneous resident memory and not necessarily physical SSD reads per token because runtime/OS cache may serve repeated experts. At the prior 834.7 MiB/s TS900 sequential-read baseline, a hypothetical cold 540 MiB sequential read has an ideal bandwidth-only floor of about 0.65 s/token (~1.55 token/s); this is not a throughput prediction, since random access, I/O latency, compute and cache behavior matter.
+
+**Stop expanding static audits.** The next gate is isolated runtime qualification, then measured peak memory/swap and PACS task quality. Start with the documented conservative VLM no-resident-expert-cache path; if it is safe but I/O-bound, test a bounded expert-cache A/B. Do not download full checkpoint weights until the shell/vision runtime path is verified.
+
+The previous user-provided `ollama /api/ps` result was empty at that earlier time, but installed model inventory is unknown. Run `ollama list` and `ollama ps` before removing anything. Removing a confirmed unloaded 4B tag prevents accidental selection and frees disk, not meaningful unified memory; it does not uninstall Ollama. Never use a wildcard removal.
