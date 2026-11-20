@@ -409,3 +409,11 @@ The Mac mini successfully completed the pinned read-only audit for `mlx-communit
 
 This is an exact metadata/header accounting PASS, **not** a 16 GiB runtime-memory or DSH integration PASS. Preliminary 2/3/4 GiB cache arithmetic and a config-derived 4K/8K sequence-state estimate are recorded in [the PACS single-model + DSH review](reports/pacs-single-model-dsh-integration-review-2026-11-20.md). On the recorded 51%-free host snapshot, 4 GiB cache is rejected for the first trial; 3 GiB is tight; 2 GiB is the safer initial candidate. Actual runtime/allocator peak, image scratch, expert read-span behavior, cache hit rate and I/O/Metal overlap remain unmeasured.
 
+
+
+### 2026-11-20 — serve-mlx source compatibility review
+
+Inspected `IDAH-BITBOX/serve-mlx` main at `d7021c9d6e66afbcf013b6a1b87431236b2d08f9` (0.1.0a7). Its Qwen3.5-MoE storage layout matches the audited Qwen3.6 stacked `switch_mlp` keys, and its VLM loader has a Qwen3.6/Qwen3.5-MoE vision path with OpenAI-compatible tool/image endpoints. However, README hardware validation is Qwen3.6 8-bit on 24 GiB, not the pinned 4-bit checkpoint on this 16 GiB Mac mini. Vision mode defaults to no resident expert cache, at least 2 GiB scratch, and 256-token prefill.
+
+**Potential blocker to verify before manifest preparation:** PACS's audit accepts `text_config` at the top level or inside `quantization`; serve-mlx's current manifest builder reads only top-level `text_config`. Confirm the pinned config's exact key location. No runtime installation, checkpoint download, model load or production DSH/MCP change is authorized. Full source review and gates: [PACS single-model + DSH integration review](reports/pacs-single-model-dsh-integration-review-2026-11-20.md).
+
