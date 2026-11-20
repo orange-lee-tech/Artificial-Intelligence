@@ -130,3 +130,79 @@ Updated script:
 Code-level regex samples passed for the pinned index prefix and alternate MLX prefix; MTP names are not captured as backbone experts. This is not yet a successful remote header audit. The corrected script must be rerun on the Mac mini; no memory envelope is valid until it passes exact index/header coverage, shape validation, all-layer/projection checks, and total byte reconciliation.
 
 The model config also declares `mtp_num_hidden_layers=1`; this alone does not prove MTP tensors are present. The next audit prints actual MTP tensor count and bytes so the runtime decision can be evidence-based.
+
+
+## 9. G6.3 Qwen3.6 exact header audit — PASS (Mac mini run, 2026-11-20)
+
+User executed the corrected read-only audit against the pinned artifact:
+
+- Repo: `mlx-community/Qwen3.6-35B-A3B-4bit`
+- Revision: `38740b847e4cb78f352aba30aa41c76e08e6eb46`
+- Four shard headers read via HTTP Range; no Safetensors tensor payloads downloaded.
+- 2,090 tensor keys; 274,319 header bytes fetched.
+- Header tensor-byte sum: 20,401,929,952 bytes, exactly matching the index declaration (19.000778 GiB).
+- Routed expert layout: stacked `switch_mlp[256,...]`.
+- 360 routed expert tensors = 40 layers × 3 projections × 3 affine quantization fields.
+- Routed expert bytes: 18,119,393,280 bytes (16.875000 GiB).
+- Non-expert bytes: 2,282,536,672 bytes (2.125778 GiB).
+- Vision: 333 tensors, 893,142,496 bytes (0.831804 GiB).
+- Non-vision shell: 1,389,394,176 bytes (1.293974 GiB).
+- MTP tensors: 0.
+- Every one of 40 MoE layers has exactly 1,769,472 bytes per expert bundle; top-8 floor is 566,231,040 bytes (540 MiB / 0.527344 GiB) per token across all layers.
+
+**G6.3 exact header accounting is PASS.** This does not mean the 16 GiB runtime memory envelope or end-to-end VLM/DSH path has passed. No runtime was installed and no model was loaded.
+
+### 9.1 Static cache-capacity arithmetic
+
+Assuming the runtime cache budget is in GiB and one complete expert bundle occupies 1,769,472 bytes:
+
+| Expert cache | Whole bundles (floor) | Average bundles/layer | Fraction of 16.875 GiB expert pool | Capacity above one-token Top-8 floor |
+|---:|---:|---:|---:|---:|
+| 2 GiB | 1,213 | 30.325 | 11.85% | 1.472656 GiB |
+| 3 GiB | 1,820 | 45.500 | 17.78% | 2.472656 GiB |
+| 4 GiB | 2,427 | 60.675 | 23.70% | 3.472656 GiB |
+
+These are capacity equivalents, not predicted cache hit rates. Real hit rate depends on router locality, expert popularity, per-layer eviction policy, and prefetch. Uniform per-layer allocations of 30/45/60 experts consume 1.977539/2.966309/3.955078 GiB respectively.
+
+### 9.2 Config-derived sequence-state estimate
+
+The pinned config specifies 40 layers, 10 full-attention layers (every fourth layer), 30 linear-attention layers, 2 KV heads, head dimension 256, BF16 model dtype, 32 linear value heads, key/value head dimensions 128, and linear convolution kernel 4.
+
+Using those values and the inspected MLX-LM Qwen3.5/3.6 implementation:
+- Full-attention K/V cache estimate: 80 MiB at 4K, 160 MiB at 8K (batch 1, BF16 K and V).
+- Gated-delta recurrent state: 60 MiB (30 × 32 × 128 × 128 × 4 bytes, FP32 state).
+- Linear-attention convolution state: 1.40625 MiB (30 × 3 × 8,192 × 2 bytes, BF16 input dtype).
+- Combined state estimate: 0.138092 GiB at 4K and 0.216217 GiB at 8K.
+
+These are configuration/source-derived state sizes, not measured runtime peaks. They exclude prefill activations, attention scratch, image-token scratch, allocator fragmentation, runtime overhead, and any implementation-specific copies.
+
+### 9.3 TS900 sequential-read screen
+
+The one-token all-cold Top-8 expert payload is 540 MiB. At the previously measured 834.7 MiB/s sequential `F_NOCACHE` read baseline, the idealized payload-transfer time is 0.647 seconds, or 1.546 tokens/s if every token incurred a full cold Top-8 read and there were no compute/transfer overlap or other overhead.
+
+This is only a sequential-bandwidth screen, not a tokens/s forecast. Each token selects 320 expert bundles (8 × 40); each bundle is represented by nine projection/quantization tensor slices, so there can be up to 2,880 logical slice ranges before adjacent-range merging. Actual span sizes, random-read amplification, cache misses, prefetch waste and I/O/Metal overlap remain G6.4 measurements.
+
+### 9.4 Preliminary 16 GiB admission screen — NOT A PASS
+
+The 2026-11-20 16:00 host snapshot showed 51% system-wide free percentage and 817.62 MB swap in use. Treating 51% of 16 GiB (8.16 GiB) only as a coarse available-memory proxy, and reserving 2 GiB for vision scratch, the model-side arithmetic is:
+
+| Cache | 4K shell + cache + state + 2 GiB vision scratch | Coarse remainder from 8.16 GiB | 8K coarse remainder |
+|---:|---:|---:|---:|
+| 2 GiB | 6.264 GiB | 1.896 GiB | 1.818 GiB |
+| 3 GiB | 7.264 GiB | 0.896 GiB | 0.818 GiB |
+| 4 GiB | 8.264 GiB | -0.104 GiB | -0.182 GiB |
+
+The remainder must still cover runtime/allocator, prefill scratch beyond the vision reserve, measurement uncertainty and the safety margin. The memory_pressure percentage is not an exact free-byte counter, so this is a screening calculation, not an admission result.
+
+**Current decision:** do not start with 4 GiB cache on the recorded host state. Keep 3 GiB as the intended comparison target, but treat it as tight until a fresh baseline and runtime/allocator reserve are measured. A 2 GiB cache is the safer first candidate for a future isolated pilot. No model download, runtime installation, model load, service restart, process termination, or production DSH/MCP change is authorized by this audit.
+
+### 9.5 G6.3 exit state
+
+- Exact pinned config/index/header accounting: **PASS**
+- Exact routed expert and non-expert byte totals: **PASS**
+- Exact vision tensor byte total: **PASS**
+- MTP tensor presence in this checkpoint: **NONE**
+- 16 GiB static admission: **PROVISIONAL / NOT PASS**
+- Actual 4K/8K runtime peak: **NOT MEASURED**
+- TS900 expert-span I/O / cache hit / overlap: **NOT MEASURED**
+- DSH OpenAI-compatible tool/image round trip: **NOT TESTED**
